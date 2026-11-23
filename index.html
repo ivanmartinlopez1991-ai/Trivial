@@ -1,247 +1,1804 @@
-let gameOver = false;
-
-const categoryNames = {
-    antigua: 'Edad Antigua',
-    media: 'Edad Media',
-    moderna: 'Edad Moderna',
-    contemporanea: 'Edad Contemporánea'
-};
-
-function renderNameInputs() {
-    const count = Number(document.getElementById('num-players').value);
-    const container = document.getElementById('name-inputs-container');
-    container.replaceChildren();
-
-    for (let i = 0; i < count; i++) {
-        const group = document.createElement('div');
-        group.className = 'setup-input-group';
-        group.style.marginTop = '10px';
-
-        const label = document.createElement('label');
-        label.htmlFor = `p${i}-name`;
-        label.textContent = `Jugador ${i + 1}:`;
-
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.id = `p${i}-name`;
-        input.maxLength = 24;
-        input.value = `Historiador ${i + 1}`;
-
-        group.append(label, input);
-        container.appendChild(group);
-    }
-}
-
-document.addEventListener('DOMContentLoaded', renderNameInputs);
-
-function startGame() {
-    const count = Number(document.getElementById('num-players').value);
-
-    players = Array.from({ length: count }, (_, i) => ({
-        id: i,
-        name: document.getElementById(`p${i}-name`).value.trim() || `Historiador ${i + 1}`,
-        color: colors[i],
-        pos: 0,
-        badges: {
-            antigua: false,
-            media: false,
-            moderna: false,
-            contemporanea: false
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHRONOS — Trivial de Historia Universal (Edición Adultos)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Cinzel (Clásica/Cartografía) e Inter (Lectura clara) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        serif: ['Cinzel', 'Georgia', 'serif'],
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        wood: {
+                            800: '#2c1e16',
+                            900: '#1b120d',
+                            950: '#110b08'
+                        },
+                        brass: {
+                            300: '#f3d999',
+                            400: '#e2ba63',
+                            500: '#c59b3c',
+                            600: '#9e7724',
+                            700: '#735314'
+                        },
+                        epoch: {
+                            antigua: '#d97706',       // Dorado / Ocre
+                            media: '#be123c',         // Carmesí / Púrpura
+                            moderna: '#0369a1',       // Azul Prusia / Turquesa
+                            contemporanea: '#047857'  // Verde Esmeralda / Petróleo
+                        }
+                    },
+                    boxShadow: {
+                        'brass': '0 0 18px rgba(197, 155, 60, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.3)',
+                        'board': '0 25px 60px -15px rgba(0, 0, 0, 0.9), inset 0 0 50px rgba(0, 0, 0, 0.75)'
+                    }
+                }
+            }
         }
-    }));
+    </script>
 
-    currentPlayerIndex = 0;
-    gameOver = false;
-    waitingQuestionResolution = false;
-
-    document.getElementById('setup-screen').style.display = 'none';
-    document.getElementById('game-container').style.display = 'flex';
-    document.getElementById('dice-text').textContent = 'Dado: —';
-    document.getElementById('roll-btn').disabled = false;
-
-    createBoard();
-}
-
-function createBoard() {
-    const board = document.getElementById('board');
-    board.replaceChildren();
-
-    const centerInfo = document.createElement('div');
-    centerInfo.className = 'center-info';
-    centerInfo.innerHTML = 'META<br>CENTRO';
-    board.appendChild(centerInfo);
-
-    const center = board.clientWidth / 2;
-    const radius = center * 0.77;
-
-    boardLayout.forEach((cellData, index) => {
-        const angle = (index / TOTAL_CELLS) * 2 * Math.PI - Math.PI / 2;
-        const cell = document.createElement('div');
-
-        cell.className = `cell ${cellData.category}${cellData.isQuesito ? ' quesito' : ''}`;
-        cell.style.left = `${center + radius * Math.cos(angle)}px`;
-        cell.style.top = `${center + radius * Math.sin(angle)}px`;
-        cell.style.transform = 'translate(-50%, -50%)';
-        cell.textContent = `${cellData.isQuesito ? '★ ' : ''}#${index}`;
-
-        board.appendChild(cell);
-    });
-
-    players.forEach((player, index) => {
-        const token = document.createElement('div');
-        token.className = 'player-token';
-        token.id = `token-${index}`;
-        token.style.backgroundColor = player.color;
-        token.style.boxShadow = `0 0 6px ${player.color}`;
-        board.appendChild(token);
-    });
-
-    updatePlayersUI();
-    updateTokensPosition();
-}
-
-function updateTokensPosition() {
-    const board = document.getElementById('board');
-    const center = board.clientWidth / 2;
-    const radius = center * 0.77;
-
-    players.forEach((player, index) => {
-        const token = document.getElementById(`token-${index}`);
-        if (!token) return;
-
-        const angle = (player.pos / TOTAL_CELLS) * 2 * Math.PI - Math.PI / 2;
-        const offsetRadius = radius + (index * 5) - 7;
-
-        token.style.left = `${center + offsetRadius * Math.cos(angle)}px`;
-        token.style.top = `${center + offsetRadius * Math.sin(angle)}px`;
-    });
-}
-
-function updatePlayersUI() {
-    const list = document.getElementById('players-list');
-    list.replaceChildren();
-
-    players.forEach((player, index) => {
-        const card = document.createElement('div');
-        card.className = `player-card${index === currentPlayerIndex && !gameOver ? ' active' : ''}`;
-
-        const info = document.createElement('div');
-        const name = document.createElement('strong');
-        name.textContent = player.name;
-        name.style.color = player.color;
-
-        const position = document.createElement('small');
-        position.textContent = `Casilla: ${player.pos}`;
-
-        info.append(name, document.createElement('br'), position);
-
-        const badges = document.createElement('div');
-        badges.className = 'badges';
-
-        categories.forEach(category => {
-            const badge = document.createElement('div');
-            badge.className = 'badge';
-            badge.title = categoryNames[category];
-            badge.style.backgroundColor = `var(--color-${category})`;
-            badge.style.opacity = player.badges[category] ? '1' : '0.2';
-            badges.appendChild(badge);
-        });
-
-        card.append(info, badges);
-        list.appendChild(card);
-    });
-
-    const status = document.getElementById('game-status');
-    status.textContent = gameOver
-        ? 'Partida terminada. Recarga la página para jugar otra vez.'
-        : `Turno de: ${players[currentPlayerIndex].name}`;
-}
-
-function rollDice() {
-    if (waitingQuestionResolution || gameOver || players.length === 0) return;
-
-    diceValue = Math.floor(Math.random() * 6) + 1;
-    document.getElementById('dice-text').textContent = `Dado: ${diceValue}`;
-    movePlayer(diceValue);
-}
-
-function movePlayer(steps) {
-    const player = players[currentPlayerIndex];
-    player.pos = (player.pos + steps) % TOTAL_CELLS;
-
-    updateTokensPosition();
-    updatePlayersUI();
-    triggerCellAction(player);
-}
-
-function triggerCellAction(player) {
-    const cell = boardLayout[player.pos];
-    const questions = questionsBank[cell.category];
-    const question = questions[Math.floor(Math.random() * questions.length)];
-
-    openQuestionModal(cell, question);
-}
-
-function openQuestionModal(cell, question) {
-    waitingQuestionResolution = true;
-    document.getElementById('roll-btn').disabled = true;
-    document.getElementById('question-modal').style.display = 'flex';
-
-    const categoryText = categoryNames[cell.category] || cell.category;
-    document.getElementById('q-category').textContent =
-        `${categoryText}${cell.isQuesito ? ' — ¡Casilla quesito!' : ''}`;
-    document.getElementById('q-text').textContent = question.q;
-
-    const options = document.getElementById('q-options');
-    options.replaceChildren();
-
-    question.options.forEach((option, index) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'option-btn';
-        button.textContent = option;
-        button.addEventListener('click', () => {
-            resolveAnswer(index === question.correct, cell);
-        });
-        options.appendChild(button);
-    });
-}
-
-function resolveAnswer(isCorrect, cell) {
-    if (!waitingQuestionResolution || gameOver) return;
-
-    const player = players[currentPlayerIndex];
-    document.getElementById('question-modal').style.display = 'none';
-    waitingQuestionResolution = false;
-
-    if (isCorrect) {
-        if (cell.isQuesito) {
-            player.badges[cell.category] = true;
+    <style>
+        /* ============================================================================
+           ESTILOS DE TABLERO DE LUJO, DADO 3D Y ANIMACIONES DE FICHA
+           ============================================================================ */
+        body {
+            background-color: #110b08;
+            background-image: 
+                radial-gradient(circle at 50% 25%, rgba(46, 31, 22, 0.9) 0%, rgba(15, 10, 7, 0.99) 100%),
+                repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 2px, transparent 2px, transparent 6px);
+            color: #f5efe6;
+            overflow-x: hidden;
+            user-select: none;
         }
 
-        if (checkWinCondition(player)) return;
+        /* Borde metálico tipo latón envejecido */
+        .brass-border {
+            border: 2px solid #c59b3c;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(243, 217, 153, 0.22);
+        }
 
-        document.getElementById('game-status').textContent = cell.isQuesito
-            ? `¡Correcto, ${player.name}! Has conseguido el quesito de ${categoryNames[cell.category]}.`
-            : `¡Correcto, ${player.name}!`;
-    } else {
-        document.getElementById('game-status').textContent =
-            `Respuesta incorrecta. Turno de ${players[(currentPlayerIndex + 1) % players.length].name}.`;
-    }
+        /* Animación de pulso dorado para las 2 casillas destino elegibles */
+        @keyframes pulseDestination {
+            0%, 100% {
+                transform: scale(1.06);
+                filter: drop-shadow(0 0 8px rgba(243, 217, 153, 0.95));
+            }
+            50% {
+                transform: scale(1.16);
+                filter: drop-shadow(0 0 18px rgba(255, 255, 255, 1));
+            }
+        }
 
-    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-    document.getElementById('roll-btn').disabled = false;
-    updatePlayersUI();
-}
+        .svg-tile-target {
+            animation: pulseDestination 1.1s infinite ease-in-out;
+            cursor: pointer;
+        }
 
-function checkWinCondition(player) {
-    const hasAllBadges = Object.values(player.badges).every(Boolean);
-    if (!hasAllBadges) return false;
+        /* Dado 3D CSS en el centro del tablero */
+        .dice-scene {
+            width: 72px;
+            height: 72px;
+            perspective: 420px;
+        }
 
-    gameOver = true;
-    document.getElementById('roll-btn').disabled = true;
-    document.getElementById('game-status').textContent =
-        `¡${player.name} ha ganado! Ha conseguido los cuatro quesitos.`;
-    updatePlayersUI();
-    return true;
-}
+        @media (min-width: 640px) {
+            .dice-scene {
+                width: 82px;
+                height: 82px;
+            }
+        }
+
+        .dice-cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .dice-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 14px;
+            background: linear-gradient(145deg, #fdfbf7 0%, #e5dac3 100%);
+            border: 2px solid #c59b3c;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.22);
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .pip {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #1b120d;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.65);
+            align-self: center;
+            justify-self: center;
+        }
+
+        @media (min-width: 640px) {
+            .pip {
+                width: 13px;
+                height: 13px;
+            }
+        }
+
+        .pip.red {
+            background: #be123c;
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Posicionamiento 3D de las 6 caras */
+        .dice-face-1 { transform: rotateY(0deg) translateZ(36px); }
+        .dice-face-2 { transform: rotateY(90deg) translateZ(36px); }
+        .dice-face-3 { transform: rotateY(180deg) translateZ(36px); }
+        .dice-face-4 { transform: rotateY(-90deg) translateZ(36px); }
+        .dice-face-5 { transform: rotateX(90deg) translateZ(36px); }
+        .dice-face-6 { transform: rotateX(-90deg) translateZ(36px); }
+
+        @media (min-width: 640px) {
+            .dice-face-1 { transform: rotateY(0deg) translateZ(41px); }
+            .dice-face-2 { transform: rotateY(90deg) translateZ(41px); }
+            .dice-face-3 { transform: rotateY(180deg) translateZ(41px); }
+            .dice-face-4 { transform: rotateY(-90deg) translateZ(41px); }
+            .dice-face-5 { transform: rotateX(90deg) translateZ(41px); }
+            .dice-face-6 { transform: rotateX(-90deg) translateZ(41px); }
+        }
+
+        /* Transición suave de fichas sobre el tablero */
+        .player-token {
+            transition: left 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s ease;
+        }
+
+        /* Scrollbar discreto */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1b120d; }
+        ::-webkit-scrollbar-thumb { background: #735314; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between font-sans antialiased selection:bg-brass-500 selection:text-wood-950">
+
+    <!-- ============================================================================
+         CABECERA SUPERIOR DE COLECCIONISTA
+         ============================================================================ -->
+    <header class="w-full bg-wood-950/90 border-b border-brass-600/40 px-4 py-2.5 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md">
+        <div class="flex items-center gap-3">
+            <!-- Emblema SVG Astrolabio -->
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brass-400 to-brass-700 p-0.5 shadow-brass flex items-center justify-center">
+                <div class="w-full h-full rounded-full bg-wood-900 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-brass-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <circle cx="12" cy="12" r="9"/>
+                        <path d="M12 6v6l4 2"/>
+                        <circle cx="12" cy="12" r="2" fill="currentColor"/>
+                    </svg>
+                </div>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="font-serif text-lg sm:text-xl font-bold tracking-wider text-brass-300 leading-none">CHRONOS</h1>
+                    <span class="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-rose-950 border border-rose-700/70 text-rose-300">Edición Adultos</span>
+                </div>
+                <p class="text-[11px] uppercase tracking-[0.2em] text-brass-500/90 font-medium mt-0.5">Trivial de Historia Universal</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+            <button id="btnRulesOpen" class="px-3 py-1.5 rounded-lg bg-wood-800 hover:bg-wood-700 border border-brass-600/50 text-brass-300 text-xs sm:text-sm font-medium transition flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                <span class="hidden sm:inline">Reglamento</span>
+            </button>
+
+            <button id="btnAudioToggle" title="Activar / Silenciar efectos de sonido" class="p-2 rounded-lg bg-wood-800 hover:bg-wood-700 border border-brass-600/50 text-brass-300 transition cursor-pointer">
+                <!-- Sonido Activo -->
+                <svg id="iconSoundOn" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                <!-- Sonido Silenciado -->
+                <svg id="iconSoundOff" class="w-4 h-4 hidden text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+            </button>
+
+            <button id="btnNewSetup" class="hidden px-3 py-1.5 rounded-lg bg-rose-950/90 hover:bg-rose-900 border border-rose-700/60 text-rose-200 text-xs sm:text-sm font-medium transition cursor-pointer">
+                Nueva Partida
+            </button>
+        </div>
+    </header>
+
+    <!-- ============================================================================
+         1. PANTALLA DE CONFIGURACIÓN INICIAL
+         ============================================================================ -->
+    <main id="setupScreen" class="flex-1 flex items-center justify-center p-4 sm:p-6">
+        <div class="w-full max-w-2xl bg-wood-900/95 brass-border rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+            <!-- Ornamentos de esquina -->
+            <div class="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-brass-400/50 rounded-tl-2xl pointer-events-none"></div>
+            <div class="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-brass-400/50 rounded-br-2xl pointer-events-none"></div>
+
+            <div class="text-center mb-6">
+                <span class="inline-block px-3 py-1 rounded-full bg-brass-500/15 border border-brass-500/40 text-brass-300 text-xs uppercase tracking-widest font-semibold mb-2">
+                    Mesa de Juego Digital • 2 a 4 Jugadores
+                </span>
+                <h2 class="font-serif text-2xl sm:text-4xl font-extrabold text-brass-300 tracking-wide">CHRONOS</h2>
+                <p class="text-sm sm:text-base text-stone-300 mt-1 max-w-lg mx-auto">
+                    Recorre el anillo del tiempo, domina las cuatro grandes eras de la humanidad y conquista los cuatro emblemas cardinales para alzarte con la victoria.
+                </p>
+            </div>
+
+            <!-- Leyenda de las 4 Épocas -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-6">
+                <div class="bg-wood-950/80 border border-amber-600/40 rounded-xl p-2.5 text-center">
+                    <div class="w-3.5 h-3.5 rounded-full bg-epoch-antigua mx-auto mb-1 shadow"></div>
+                    <p class="font-serif text-xs font-bold text-amber-400">Edad Antigua</p>
+                    <p class="text-[10px] text-stone-400">Esquina Norte</p>
+                </div>
+                <div class="bg-wood-950/80 border border-rose-600/40 rounded-xl p-2.5 text-center">
+                    <div class="w-3.5 h-3.5 rounded-full bg-epoch-media mx-auto mb-1 shadow"></div>
+                    <p class="font-serif text-xs font-bold text-rose-400">Edad Media</p>
+                    <p class="text-[10px] text-stone-400">Esquina Este</p>
+                </div>
+                <div class="bg-wood-950/80 border border-sky-600/40 rounded-xl p-2.5 text-center">
+                    <div class="w-3.5 h-3.5 rounded-full bg-epoch-moderna mx-auto mb-1 shadow"></div>
+                    <p class="font-serif text-xs font-bold text-sky-400">Edad Moderna</p>
+                    <p class="text-[10px] text-stone-400">Esquina Sur</p>
+                </div>
+                <div class="bg-wood-950/80 border border-emerald-600/40 rounded-xl p-2.5 text-center">
+                    <div class="w-3.5 h-3.5 rounded-full bg-epoch-contemporanea mx-auto mb-1 shadow"></div>
+                    <p class="font-serif text-xs font-bold text-emerald-400">Contemporánea</p>
+                    <p class="text-[10px] text-stone-400">Esquina Oeste</p>
+                </div>
+            </div>
+
+            <!-- Selector de Número de Jugadores -->
+            <div class="mb-6">
+                <label class="block text-xs uppercase tracking-wider text-brass-400 font-semibold mb-2">
+                    Número de Historiadores en la Mesa
+                </label>
+                <div class="grid grid-cols-3 gap-3" id="playerCountSelector">
+                    <button type="button" data-count="2" class="count-btn py-2.5 rounded-xl font-serif font-bold text-sm sm:text-base border transition cursor-pointer bg-brass-500 text-wood-950 border-brass-300 shadow-brass">
+                        2 Jugadores
+                    </button>
+                    <button type="button" data-count="3" class="count-btn py-2.5 rounded-xl font-serif font-bold text-sm sm:text-base border transition cursor-pointer bg-wood-950/80 text-stone-300 border-brass-700/50 hover:border-brass-500">
+                        3 Jugadores
+                    </button>
+                    <button type="button" data-count="4" class="count-btn py-2.5 rounded-xl font-serif font-bold text-sm sm:text-base border transition cursor-pointer bg-wood-950/80 text-stone-300 border-brass-700/50 hover:border-brass-500">
+                        4 Jugadores
+                    </button>
+                </div>
+            </div>
+
+            <!-- Campos de Nombres y Fichas -->
+            <div class="space-y-3 mb-6" id="playerInputsContainer">
+                <!-- Generado dinámicamente por JS -->
+            </div>
+
+            <!-- Opción de Audio en pantalla inicial -->
+            <div class="flex items-center justify-between bg-wood-950/70 border border-brass-700/40 rounded-xl px-4 py-3 mb-6">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-brass-400 text-lg">🔊</span>
+                    <div>
+                        <p class="text-sm font-medium text-stone-200">Efectos de Sonido de Mesa</p>
+                        <p class="text-xs text-stone-400">Dado rodando, movimiento de ficha, aciertos y fanfarria</p>
+                    </div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="setupAudioCheckbox" class="sr-only peer" checked>
+                    <div class="w-11 h-6 bg-wood-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-stone-300 after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brass-500"></div>
+                </label>
+            </div>
+
+            <!-- Botón Comenzar Partida -->
+            <button id="btnStartGame" class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-brass-600 via-brass-400 to-brass-600 hover:from-brass-500 hover:via-brass-300 hover:to-brass-500 text-wood-950 font-serif font-extrabold text-base sm:text-lg tracking-wider uppercase shadow-brass transition transform active:scale-[0.99] cursor-pointer">
+                Comenzar Partida
+            </button>
+        </div>
+    </main>
+
+    <!-- ============================================================================
+         2. MESA DE JUEGO PRINCIPAL (MARCADORES + TABLERO CIRCULAR)
+         ============================================================================ -->
+    <section id="gameScreen" class="hidden flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 flex flex-col lg:flex-row items-center lg:items-stretch justify-center gap-5">
+        
+        <!-- COLUMNA IZQUIERDA / SUPERIOR: MARCADORES DE JUGADORES -->
+        <aside class="w-full lg:w-80 flex flex-col gap-3 shrink-0">
+            <div class="bg-wood-900/90 brass-border rounded-2xl p-3.5 shadow-xl">
+                <div class="flex items-center justify-between border-b border-brass-700/40 pb-2 mb-3">
+                    <h2 class="font-serif text-sm font-bold uppercase tracking-wider text-brass-300">Historiadores</h2>
+                    <span id="deckCounterBadge" class="text-[11px] text-stone-400 bg-wood-950 px-2 py-0.5 rounded-md border border-brass-700/30">48 Cartas</span>
+                </div>
+                
+                <!-- Lista de tarjetas de jugador -->
+                <div id="scoreboardList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5">
+                    <!-- Inyectado dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Registro de actividad / Crónica de la partida -->
+            <div class="hidden lg:flex flex-col flex-1 bg-wood-900/80 border border-brass-700/40 rounded-2xl p-3.5 shadow-lg min-h-[140px]">
+                <h3 class="font-serif text-xs font-bold uppercase tracking-wider text-brass-400 mb-2 flex items-center gap-1.5">
+                    <span>📜</span> Crónica de la Partida
+                </h3>
+                <div id="gameLogList" class="flex-1 overflow-y-auto space-y-1.5 text-xs text-stone-300 pr-1 max-h-48">
+                    <!-- Mensajes del turno -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- COLUMNA CENTRAL: TABLERO CIRCULAR INTERACTIVO -->
+        <div class="flex-1 flex flex-col items-center justify-center w-full">
+            
+            <!-- Banner de estado de turno -->
+            <div id="turnStatusBanner" class="w-full max-w-[580px] mb-3 px-4 py-2.5 rounded-xl bg-wood-900/95 border border-brass-500/50 shadow-lg flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span id="activePlayerDot" class="w-3.5 h-3.5 rounded-full shrink-0 ring-2 ring-white/40"></span>
+                    <p id="turnInstructionText" class="text-xs sm:text-sm font-medium text-stone-100 truncate">
+                        Turno de Jugador 1: Lanza el dado
+                    </p>
+                </div>
+                <span id="turnPhaseBadge" class="shrink-0 text-[10px] sm:text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-brass-500/20 text-brass-300 border border-brass-500/40">
+                    Tirada
+                </span>
+            </div>
+
+            <!-- CONTENEDOR CUADRADO RESPONSIVE DEL TABLERO CIRCULAR -->
+            <div id="boardContainer" class="relative w-full max-w-[580px] aspect-square rounded-full shadow-board bg-wood-950 p-1.5 sm:p-2.5 border-4 border-brass-600/80">
+                
+                <!-- Tablero SVG Cartográfico (24 casillas + Rosa de los vientos + Radios) -->
+                <svg id="boardSvg" viewBox="0 0 600 600" class="w-full h-full rounded-full overflow-visible">
+                    <defs>
+                        <!-- Degradado de fondo de tapete -->
+                        <radialGradient id="feltGrad" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#174233"/>
+                            <stop offset="70%" stop-color="#0d261d"/>
+                            <stop offset="100%" stop-color="#071611"/>
+                        </radialGradient>
+                        <!-- Degradado dorado metálico -->
+                        <linearGradient id="goldRim" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#f3d999"/>
+                            <stop offset="50%" stop-color="#c59b3c"/>
+                            <stop offset="100%" stop-color="#735314"/>
+                        </linearGradient>
+                        <!-- Sombra para casillas -->
+                        <filter id="tileShadow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.65"/>
+                        </filter>
+                    </defs>
+
+                    <!-- Base circular del tablero -->
+                    <circle cx="300" cy="300" r="295" fill="url(#feltGrad)" stroke="url(#goldRim)" stroke-width="5"/>
+                    <circle cx="300" cy="300" r="245" fill="none" stroke="#c59b3c" stroke-width="1.5" stroke-opacity="0.35" stroke-dasharray="6 4"/>
+                    <circle cx="300" cy="300" r="190" fill="none" stroke="#c59b3c" stroke-width="1.2" stroke-opacity="0.25"/>
+
+                    <!-- Líneas cardinales cartográficas -->
+                    <g stroke="#c59b3c" stroke-opacity="0.2" stroke-width="1.5">
+                        <line x1="300" y1="15" x2="300" y2="585"/>
+                        <line x1="15" y1="300" x2="585" y2="300"/>
+                        <line x1="98" y1="98" x2="502" y2="502" stroke-dasharray="4 6"/>
+                        <line x1="502" y1="98" x2="98" y2="502" stroke-dasharray="4 6"/>
+                    </g>
+
+                    <!-- Rosa de los vientos decorativa interior -->
+                    <g opacity="0.22" transform="translate(300,300)">
+                        <polygon points="0,-165 18,-18 165,0 18,18 0,165 -18,18 -165,0 -18,-18" fill="#c59b3c"/>
+                        <polygon points="0,-125 12,-12 125,0 12,12 0,125 -12,12 -125,0 -12,-12" fill="#f3d999" transform="rotate(45)"/>
+                    </g>
+
+                    <!-- Etiquetas cardinales de las 4 esquinas de Quesito -->
+                    <text x="300" y="138" text-anchor="middle" fill="#fbbf24" font-family="Cinzel, serif" font-size="11" font-weight="800" letter-spacing="2">NORTE • ANTIGUA</text>
+                    <text x="466" y="304" text-anchor="middle" fill="#fb7185" font-family="Cinzel, serif" font-size="10" font-weight="800" letter-spacing="1.5" transform="rotate(90 466 304)">ESTE • MEDIA</text>
+                    <text x="300" y="472" text-anchor="middle" fill="#38bdf8" font-family="Cinzel, serif" font-size="11" font-weight="800" letter-spacing="2">SUR • MODERNA</text>
+                    <text x="134" y="304" text-anchor="middle" fill="#34d399" font-family="Cinzel, serif" font-size="10" font-weight="800" letter-spacing="1.5" transform="rotate(-90 134 304)">OESTE • CONTEMP.</text>
+
+                    <!-- Grupo donde JS dibujará las 24 casillas del anillo -->
+                    <g id="boardTilesGroup"></g>
+                </svg>
+
+                <!-- CAPA DE FICHAS DE JUGADORES (Posicionadas por porcentaje exacto) -->
+                <div id="tokensLayer" class="absolute inset-0 pointer-events-none z-20">
+                    <!-- Fichas inyectadas por JS -->
+                </div>
+
+                <!-- EJE CENTRAL DEL TABLERO: DADO 3D Y BOTÓN DE TIRADA -->
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
+                    <div class="w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-wood-950/95 border-2 border-brass-500 shadow-2xl flex flex-col items-center justify-center p-3 pointer-events-auto relative">
+                        <!-- Aro interior decorativo -->
+                        <div class="absolute inset-1.5 rounded-full border border-brass-500/30 pointer-events-none"></div>
+
+                        <!-- Dado 3D -->
+                        <div class="dice-scene mb-2.5" id="diceClickArea" title="Haz clic para lanzar el dado">
+                            <div class="dice-cube" id="diceCube">
+                                <!-- Cara 1 -->
+                                <div class="dice-face dice-face-1">
+                                    <span></span><span></span><span></span>
+                                    <span></span><span class="pip red"></span><span></span>
+                                    <span></span><span></span><span></span>
+                                </div>
+                                <!-- Cara 2 -->
+                                <div class="dice-face dice-face-2">
+                                    <span class="pip"></span><span></span><span></span>
+                                    <span></span><span></span><span></span>
+                                    <span></span><span></span><span class="pip"></span>
+                                </div>
+                                <!-- Cara 3 -->
+                                <div class="dice-face dice-face-3">
+                                    <span class="pip"></span><span></span><span></span>
+                                    <span></span><span class="pip"></span><span></span>
+                                    <span></span><span></span><span class="pip"></span>
+                                </div>
+                                <!-- Cara 4 -->
+                                <div class="dice-face dice-face-4">
+                                    <span class="pip"></span><span></span><span class="pip"></span>
+                                    <span></span><span></span><span></span>
+                                    <span class="pip"></span><span></span><span class="pip"></span>
+                                </div>
+                                <!-- Cara 5 -->
+                                <div class="dice-face dice-face-5">
+                                    <span class="pip"></span><span></span><span class="pip"></span>
+                                    <span></span><span class="pip"></span><span></span>
+                                    <span class="pip"></span><span></span><span class="pip"></span>
+                                </div>
+                                <!-- Cara 6 -->
+                                <div class="dice-face dice-face-6">
+                                    <span class="pip"></span><span></span><span class="pip"></span>
+                                    <span class="pip"></span><span></span><span class="pip"></span>
+                                    <span class="pip"></span><span></span><span class="pip"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botón de acción central -->
+                        <button id="btnRollDice" class="px-3.5 py-1.5 rounded-lg bg-gradient-to-b from-brass-400 to-brass-600 hover:from-brass-300 hover:to-brass-500 text-wood-950 font-serif font-extrabold text-xs sm:text-sm tracking-wide shadow-md transition active:scale-95 cursor-pointer">
+                            Lanzar Dado
+                        </button>
+
+                        <!-- Indicador de elección de dirección tras tirar -->
+                        <div id="directionPrompt" class="hidden text-center px-1">
+                            <p class="text-[11px] sm:text-xs font-bold text-brass-300 leading-tight">
+                                ¡Sacaste un <span id="diceValueLabel" class="text-white underline">6</span>!
+                            </p>
+                            <p class="text-[10px] text-stone-300 leading-tight mt-0.5">
+                                Elige casilla iluminada (↻ / ↺)
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controles rápidos de dirección para accesibilidad (además de clicar en el tablero) -->
+            <div id="directionQuickButtons" class="hidden mt-3 flex items-center justify-center gap-3">
+                <button id="btnMoveCCW" class="px-3.5 py-2 rounded-xl bg-wood-900 hover:bg-wood-800 border border-brass-500/70 text-brass-300 text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow transition cursor-pointer">
+                    <span>↺</span> Sentido Antihorario
+                </button>
+                <button id="btnMoveCW" class="px-3.5 py-2 rounded-xl bg-wood-900 hover:bg-wood-800 border border-brass-500/70 text-brass-300 text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow transition cursor-pointer">
+                    Sentido Horario <span>↻</span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================================
+         3. MODAL DE PREGUNTA HISTÓRICA (CARTA DE TRIVIAL)
+         ============================================================================ -->
+    <div id="questionModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5">
+        <div id="questionCard" class="w-full max-w-xl bg-wood-900 border-2 border-brass-500 rounded-2xl shadow-2xl overflow-hidden transform transition-all">
+            <!-- Cabecera temática según la época -->
+            <div id="qModalHeader" class="px-5 py-3.5 flex items-center justify-between border-b border-white/15 bg-amber-700">
+                <div class="flex items-center gap-2.5">
+                    <span id="qEpochIcon" class="text-xl">🏛️</span>
+                    <div>
+                        <h3 id="qEpochTitle" class="font-serif text-base sm:text-lg font-extrabold text-white tracking-wide uppercase">Edad Antigua</h3>
+                        <p id="qPlayerTurnLabel" class="text-xs text-white/90 font-medium">Responde: Jugador 1</p>
+                    </div>
+                </div>
+                <span id="qWedgeBadge" class="hidden px-2.5 py-1 rounded-full bg-wood-950/90 border border-brass-300 text-brass-300 text-xs font-serif font-bold uppercase tracking-wider shadow">
+                    ★ Casilla de Quesito
+                </span>
+            </div>
+
+            <!-- Cuerpo de la pregunta -->
+            <div class="p-5 sm:p-6">
+                <p id="qText" class="text-base sm:text-lg font-semibold text-stone-100 leading-relaxed mb-5">
+                    ¿Texto de la pregunta histórica?
+                </p>
+
+                <!-- 4 Opciones de respuesta -->
+                <div id="qOptionsContainer" class="space-y-2.5">
+                    <!-- Botones generados por JS -->
+                </div>
+
+                <!-- Panel de Resolución y Explicación Histórica (aparece tras responder) -->
+                <div id="qFeedbackBox" class="hidden mt-5 p-4 rounded-xl border bg-wood-950/90">
+                    <div class="flex items-center gap-2 mb-1.5">
+                        <span id="qResultIcon" class="text-lg"></span>
+                        <h4 id="qResultTitle" class="font-serif font-bold text-sm sm:text-base"></h4>
+                    </div>
+                    <p id="qExplanationText" class="text-xs sm:text-sm text-stone-300 leading-relaxed"></p>
+                    
+                    <button id="btnContinueTurn" class="mt-4 w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-brass-600 via-brass-400 to-brass-600 hover:from-brass-500 hover:to-brass-500 text-wood-950 font-serif font-extrabold text-sm uppercase tracking-wider shadow transition cursor-pointer">
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================================
+         4. MODAL DE VICTORIA Y ESTADÍSTICAS
+         ============================================================================ -->
+    <div id="victoryModal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="w-full max-w-lg bg-wood-900 brass-border rounded-2xl p-6 sm:p-8 text-center shadow-2xl relative overflow-hidden">
+            <div class="text-5xl mb-3">👑</div>
+            <span class="inline-block px-3 py-1 rounded-full bg-brass-500/20 border border-brass-400 text-brass-300 text-xs font-bold uppercase tracking-widest mb-2">
+                Maestro de la Historia Universal
+            </span>
+            <h2 id="winnerNameTitle" class="font-serif text-2xl sm:text-4xl font-black text-white mb-2">¡Victoria!</h2>
+            <p class="text-sm text-stone-300 mb-6">
+                Ha conquistado los cuatro emblemas cardinales de Chronos demostrando un dominio excepcional del devenir humano.
+            </p>
+
+            <!-- Tabla resumen de la partida -->
+            <div id="victoryStatsList" class="bg-wood-950/90 border border-brass-700/40 rounded-xl p-4 mb-6 text-left space-y-2.5">
+                <!-- Estadísticas inyectadas por JS -->
+            </div>
+
+            <button id="btnPlayAgain" class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-brass-600 via-brass-400 to-brass-600 hover:from-brass-500 hover:to-brass-500 text-wood-950 font-serif font-extrabold text-base uppercase tracking-wider shadow-brass transition cursor-pointer">
+                Jugar Otra Partida
+            </button>
+        </div>
+    </div>
+
+    <!-- ============================================================================
+         5. MODAL DE REGLAMENTO OFICIAL
+         ============================================================================ -->
+    <div id="rulesModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="w-full max-w-lg bg-wood-900 brass-border rounded-2xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-brass-700/50 pb-3 mb-4">
+                <h3 class="font-serif text-xl font-bold text-brass-300">Reglamento de Chronos</h3>
+                <button id="btnRulesClose" class="text-stone-400 hover:text-white text-xl font-bold px-2 cursor-pointer">&times;</button>
+            </div>
+            <div class="space-y-3 text-sm text-stone-300 leading-relaxed">
+                <p><strong class="text-brass-300">1. Objetivo del Juego:</strong> Ser el primer historiador en reunir los <strong class="text-white">4 quesitos (emblemas de época)</strong>: Edad Antigua, Edad Media, Edad Moderna y Edad Contemporánea.</p>
+                <p><strong class="text-brass-300">2. Desarrollo del Turno:</strong> Lanza el dado situado en el centro del tablero circular. A continuación, elige avanzar en sentido <strong class="text-white">horario (↻)</strong> o <strong class="text-white">antihorario (↺)</strong> haciendo clic en cualquiera de las dos casillas iluminadas.</p>
+                <p><strong class="text-brass-300">3. Preguntas y Continuidad:</strong> Al detenerte en una casilla, responderás a una pregunta de la época correspondiente. <strong class="text-emerald-400">Si aciertas, conservas el turno y vuelves a tirar el dado.</strong> Si fallas, el turno pasa al siguiente jugador.</p>
+                <p><strong class="text-brass-300">4. Casillas de Esquina (Quesitos):</strong> Las cuatro casillas cardinales (Norte, Este, Sur y Oeste) están marcadas con una corona dorada. Si aciertas la pregunta en una de estas esquinas, ganas el quesito de esa época.</p>
+            </div>
+            <button id="btnRulesOk" class="mt-5 w-full py-2.5 rounded-xl bg-brass-500 hover:bg-brass-400 text-wood-950 font-serif font-bold text-sm uppercase tracking-wider cursor-pointer">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <!-- PIE DE PÁGINA -->
+    <footer class="w-full text-center py-2.5 text-[11px] text-stone-500 border-t border-brass-700/20">
+        CHRONOS • Juego de Mesa Digital de Historia Universal • Edición para Adultos (48 Cartas Históricas)
+    </footer>
+
+    <!-- ============================================================================
+         LÓGICA COMPLETA DEL JUEGO (AUDIO WEB API, BASE DE DATOS Y MOTOR DE TABLERO)
+         ============================================================================ -->
+    <script>
+        /**
+         * 1. SINTETIZADOR DE EFECTOS DE SONIDO (Web Audio API - Sin archivos externos)
+         */
+        class SoundEngine {
+            constructor() {
+                this.enabled = true;
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTone(freq, type, duration, delay = 0, gainVal = 0.15) {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+
+                gain.gain.setValueAtTime(gainVal, this.ctx.currentTime + delay);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start(this.ctx.currentTime + delay);
+                osc.stop(this.ctx.currentTime + delay + duration);
+            }
+
+            // Sonido de dado rodando sobre madera
+            playDiceRoll() {
+                if (!this.enabled) return;
+                const clicks = [0, 0.08, 0.17, 0.27, 0.39, 0.53, 0.68];
+                clicks.forEach((t, idx) => {
+                    this.playTone(140 + (idx % 3) * 45, 'triangle', 0.05, t, 0.18);
+                });
+            }
+
+            // Paso de ficha sobre el tablero
+            playStep() {
+                this.playTone(320, 'sine', 0.07, 0, 0.12);
+            }
+
+            // Respuesta correcta
+            playCorrect() {
+                this.playTone(523.25, 'triangle', 0.18, 0, 0.16);    // C5
+                this.playTone(659.25, 'triangle', 0.28, 0.11, 0.18); // E5
+            }
+
+            // Respuesta incorrecta
+            playWrong() {
+                this.playTone(220, 'sawtooth', 0.22, 0, 0.12);
+                this.playTone(175, 'sawtooth', 0.35, 0.16, 0.12);
+            }
+
+            // Obtención de quesito
+            playWedgeEarned() {
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // Arpegio Do Mayor
+                notes.forEach((n, i) => {
+                    this.playTone(n, 'triangle', 0.32, i * 0.1, 0.2);
+                });
+            }
+
+            // Fanfarria de victoria final
+            playVictory() {
+                const melody = [
+                    { f: 523.25, t: 0, d: 0.18 },
+                    { f: 659.25, t: 0.16, d: 0.18 },
+                    { f: 783.99, t: 0.32, d: 0.18 },
+                    { f: 1046.50, t: 0.48, d: 0.45 },
+                    { f: 783.99, t: 0.96, d: 0.18 },
+                    { f: 1046.50, t: 1.15, d: 0.65 }
+                ];
+                melody.forEach(m => this.playTone(m.f, 'triangle', m.d, m.t, 0.22));
+            }
+        }
+
+        const soundFX = new SoundEngine();
+
+        /**
+         * 2. CONFIGURACIÓN DE ÉPOCAS Y FICHAS DE JUGADORES
+         */
+        const EPOCHS = {
+            antigua: {
+                id: 'antigua',
+                name: 'Edad Antigua',
+                shortName: 'Antigua',
+                color: '#d97706',
+                bgClass: 'bg-amber-700',
+                badgeText: 'text-amber-300',
+                icon: '🏛️',
+                cornerIndex: 0 // Norte
+            },
+            media: {
+                id: 'media',
+                name: 'Edad Media',
+                shortName: 'Media',
+                color: '#be123c',
+                bgClass: 'bg-rose-800',
+                badgeText: 'text-rose-300',
+                icon: '⚔️',
+                cornerIndex: 6 // Este
+            },
+            moderna: {
+                id: 'moderna',
+                name: 'Edad Moderna',
+                shortName: 'Moderna',
+                color: '#0369a1',
+                bgClass: 'bg-sky-800',
+                badgeText: 'text-sky-300',
+                icon: '🧭',
+                cornerIndex: 12 // Sur
+            },
+            contemporanea: {
+                id: 'contemporanea',
+                name: 'Edad Contemporánea',
+                shortName: 'Contemporánea',
+                color: '#047857',
+                bgClass: 'bg-emerald-800',
+                badgeText: 'text-emerald-300',
+                icon: '⚙️',
+                cornerIndex: 18 // Oeste
+            }
+        };
+
+        const EPOCH_KEYS = ['antigua', 'media', 'moderna', 'contemporanea'];
+
+        const TOKEN_PRESETS = [
+            { name: 'Heródoto', gem: 'Rubí', color: '#e11d48', ring: '#fda4af' },
+            { name: 'Hipatia', gem: 'Zafiro', color: '#0284c7', ring: '#7dd3fc' },
+            { name: 'Maquiavelo', gem: 'Esmeralda', color: '#059669', ring: '#6ee7b7' },
+            { name: 'Hannah Arendt', gem: 'Ámbar', color: '#d97706', ring: '#fcd34d' }
+        ];
+
+        /**
+         * 3. BASE DE DATOS DE PREGUNTAS (48 PREGUNTAS DE NIVEL ADULTO - 12 POR ÉPOCA)
+         */
+        const QUESTIONS_DB = {
+            antigua: [
+                {
+                    q: "¿Qué batalla naval del año 31 a. C. selló la derrota definitiva de Marco Antonio y Cleopatra frente a Octavio?",
+                    options: ["Batalla de Accio (Actium)", "Batalla de Lepanto", "Batalla de Salamina", "Batalla de Farsalia"],
+                    correct: 0,
+                    explanation: "En Accio, la flota de Agripa al servicio de Octavio derrotó a Marco Antonio y Cleopatra, poniendo fin a las guerras civiles romanas y dando paso al Principado."
+                },
+                {
+                    q: "El Código de Hammurabi, célebre por aplicar la ley del talión con distinciones estamentales, fue esculpido en piedra bajo el imperio:",
+                    options: ["Asirio", "Paleobabilónico", "Hitita", "Acadio"],
+                    correct: 1,
+                    explanation: "Hammurabi fue el sexto rey de la primera dinastía de Babilonia (siglo XVIII a. C.) y unificó Mesopotamia bajo un corpus jurídico escrito."
+                },
+                {
+                    q: "¿Qué reforma política de Clístenes en Atenas (508 a. C.) buscaba desmantelar el poder de los clanes aristocráticos tradicionales?",
+                    options: ["La creación del Consejo de los Quinientos (Bulé) por tribus territoriales", "La instauración de la diarquía", "La abolición del ostracismo", "La entrega del poder al Areópago"],
+                    correct: 0,
+                    explanation: "Clístenes reorganizó el Ática en diez tribus basadas en el domicilio y no en el linaje, sentando las bases institucionales de la democracia ateniense."
+                },
+                {
+                    q: "¿Cuál fue el desenlace de la Tercera Guerra Púnica (149-146 a. C.) impulsada en Roma por Catón el Viejo?",
+                    options: ["La anexión pacífica de Cartago como reino cliente", "La destrucción total de Cartago y la esclavización de sus supervivientes", "La división del Mediterráneo en dos zonas de influencia", "La victoria naval de Amílcar Barca"],
+                    correct: 1,
+                    explanation: "Escipión Emiliano arrasó Cartago tras un asedio de tres años, convirtiendo su territorio en la provincia romana de África."
+                },
+                {
+                    q: "¿Qué emperador chino de la dinastía Qin unificó por primera vez China en el 221 a. C. y estandarizó la escritura, la moneda y los pesos?",
+                    options: ["Han Wudi", "Qin Shi Huang", "Kublai Kan", "Sun Tzu"],
+                    correct: 1,
+                    explanation: "Qin Shi Huang aplicó el legismo de forma implacable, inició la Gran Muralla y ordenó construir el célebre Ejército de Terracota."
+                },
+                {
+                    q: "En el Egipto de la dinastía XVIII, ¿qué faraón impulsó una revolución religiosa monolátrica centrada en el disco solar Atón?",
+                    options: ["Ramsés II", "Akenatón (Amenhotep IV)", "Tutmosis III", "Seti I"],
+                    correct: 1,
+                    explanation: "Akenatón trasladó la capital a Amarna para debilitar al poderoso clero de Amón en Tebas, aunque su reforma fue revertida tras su muerte."
+                },
+                {
+                    q: "¿Qué general cartaginés infligió a Roma una de sus mayores catástrofes militares en la batalla de Cannas (216 a. C.) mediante una maniobra de doble envolvimiento?",
+                    options: ["Asdrúbal Barca", "Aníbal Barca", "Magón", "Hannón el Grande"],
+                    correct: 1,
+                    explanation: "En Cannas, Aníbal rodeó y aniquiló a un ejército romano muy superior numéricamente; su táctica sigue estudiándose en academias militares."
+                },
+                {
+                    q: "¿Qué tratado del 449 a. C. puso fin formalmente a las Guerras Médicas entre la Liga de Delos liderada por Atenas y el Imperio Aqueménida?",
+                    options: ["Paz de Nicias", "Paz de Calias", "Paz de Antálcidas", "Tratado de Apamea"],
+                    correct: 1,
+                    explanation: "Mediante la Paz de Calias, Persia reconoció la autonomía de las ciudades griegas de Asia Menor y se comprometió a no navegar por el Egeo."
+                },
+                {
+                    q: "¿Qué institución romana permitía nombrar un magistrado extraordinario con plenos poderes por un máximo de seis meses en tiempos de crisis extrema?",
+                    options: ["El Tribunado de la Plebe", "La Dictadura", "La Censura", "El Edilato Curul"],
+                    correct: 1,
+                    explanation: "Durante la República romana, la dictadura era una magistratura constitucional y temporal, antes de que Sila y Julio César la desnaturalizaran."
+                },
+                {
+                    q: "¿Qué rey de Macedonia conquistó el Imperio Persa hasta el río Indo antes de morir en Babilonia en el 323 a. C. sin heredero adulto?",
+                    options: ["Filipo II", "Alejandro Magno", "Seleuco I", "Antígono Monoftalmos"],
+                    correct: 1,
+                    explanation: "La muerte prematura de Alejandro a los 32 años desencadenó las guerras de los Diádocos y el nacimiento de los reinos helenísticos."
+                },
+                {
+                    q: "¿Qué edicto promulgado por Constantino I y Licinio en el año 313 d. C. estableció la libertad religiosa y devolvió bienes confiscados a los cristianos?",
+                    options: ["Edicto de Tesalónica", "Edicto de Milán", "Edicto de Serdica", "Edicto de Caracalla"],
+                    correct: 1,
+                    explanation: "El Edicto de Milán puso fin a las persecuciones imperiales; décadas más tarde, Teodosio convertiría el cristianismo en religión oficial."
+                },
+                {
+                    q: "¿Qué civilización precolombina del periodo Clásico desarrolló un complejo sistema de escritura jeroglífica y un calendario astronómico de Cuenta Larga en Mesoamérica?",
+                    options: ["Inca", "Maya", "Chavín", "Moche"],
+                    correct: 1,
+                    explanation: "Los mayas alcanzaron su apogeo entre los siglos III y IX d. C. en ciudades-estado como Tikal, Palenque y Calakmul."
+                }
+            ],
+            media: [
+                {
+                    q: "¿Qué acuerdo firmado en el año 843 dividió el Imperio Carolingio entre los tres nietos sobrevivientes de Carlomagno?",
+                    options: ["Tratado de Verdún", "Tratado de Mersen", "Concordato de Worms", "Paz de Augsburgo"],
+                    correct: 0,
+                    explanation: "El Tratado de Verdún repartió el imperio entre Lotario I, Luis el Germánico y Carlos el Calvo, prefigurando las futuras fronteras de Francia y Alemania."
+                },
+                {
+                    q: "¿Qué conflicto enfrentó al Papado y al Sacro Imperio Romano Germánico entre 1075 y 1122 por el derecho a nombrar obispos y abades?",
+                    options: ["El Cisma de Occidente", "La Querella de las Investiduras", "La Cruzada Albigense", "La Guerra de las Dos Rosas"],
+                    correct: 1,
+                    explanation: "Protagonizada por el papa Gregorio VII y el emperador Enrique IV (incluyendo la humillación de Canossa), concluyó con el Concordato de Worms."
+                },
+                {
+                    q: "¿Qué documento inglés de 1215 obligó al rey Juan Sin Tierra a limitar su poder arbitrario y garantizar ciertos derechos legales a los barones?",
+                    options: ["El Estatuto de Westminster", "La Carta Magna", "La Petición de Derechos", "Las Provisiones de Oxford"],
+                    correct: 1,
+                    explanation: "La Carta Magna sentó un precedente fundamental del constitucionalismo al someter por primera vez la voluntad del monarca al imperio de la ley."
+                },
+                {
+                    q: "¿Qué batalla de 1212 supuso un punto de inflexión decisivo en la Reconquista ibérica al derrotar una coalición cristiana al imperio almohade?",
+                    options: ["Batalla de Alarcos", "Batalla de las Navas de Tolosa", "Batalla del Salado", "Batalla de Sagrajas"],
+                    correct: 1,
+                    explanation: "En las Navas de Tolosa, los reyes Alfonso VIII de Castilla, Pedro II de Aragón y Sancho VII de Navarra quebraron la hegemonía almohade en al-Ándalus."
+                },
+                {
+                    q: "¿Qué emperador bizantino del siglo VI intentó reconquistar el antiguo Imperio Romano de Occidente y ordenó recopilar el 'Corpus Iuris Civilis'?",
+                    options: ["Heraclio", "Justiniano I", "Basilio II", "Alejo I Comneno"],
+                    correct: 1,
+                    explanation: "Con generales como Belisario y el apoyo de la emperatriz Teodora, Justiniano recuperó el norte de África e Italia y legó la base del derecho europeo."
+                },
+                {
+                    q: "¿Qué pandémico brote de Yersinia pestis diezmó entre un 30 % y un 50 % de la población europea a mediados del siglo XIV?",
+                    options: ["La Plaga de Justiniano", "La Peste Negra", "El Sudor Inglés", "La Fiebre Amarilla"],
+                    correct: 1,
+                    explanation: "Llegada desde Asia central a través de las rutas comerciales genovesas en 1347, provocó una profunda crisis demográfica, económica y social del feudalismo."
+                },
+                {
+                    q: "¿Qué dinastía islámica trasladó la capital del califato de Damasco a Bagdad en el año 750, inaugurando una edad de oro científica y cultural?",
+                    options: ["Omeya", "Abasí", "Fatimí", "Almorávide"],
+                    correct: 1,
+                    explanation: "Bajo los califas abasíes como Harún al-Rashid se fundó la Casa de la Sabiduría de Bagdad, donde se tradujeron y ampliaron textos griegos, persas e indios."
+                },
+                {
+                    q: "¿Qué episodio de 1204 durante la Cuarta Cruzada debilitó irreversiblemente al Imperio Bizantino?",
+                    options: ["La caída de Jerusalén ante Saladino", "El saqueo de Constantinopla por los propios cruzados", "La derrota en Manzikert", "El asedio de Acre"],
+                    correct: 1,
+                    explanation: "Desviados por intereses comerciales venecianos y disputas dinásticas, los cruzados tomaron y saquearon Constantinopla, instaurando el efímero Imperio Latino."
+                },
+                {
+                    q: "¿Qué conflicto dinástico enfrentó a las casas de Lancaster y York por el trono de Inglaterra entre 1455 y 1487?",
+                    options: ["La Guerra de los Cien Años", "La Guerra de las Dos Rosas", "La Rebelión Jacobita", "La Anarquía Inglesa"],
+                    correct: 1,
+                    explanation: "Concluyó en la batalla de Bosworth con la victoria de Enrique Tudor (Enrique VII), quien unió ambas casas mediante su matrimonio con Isabel de York."
+                },
+                {
+                    q: "¿Qué líder mongol unificó a las tribus nómadas de la estepa en 1206 y creó el mayor imperio contiguo de la historia?",
+                    options: ["Tamerlán", "Gengis Kan (Temuyín)", "Batu Kan", "Ogedei Kan"],
+                    correct: 1,
+                    explanation: "Gracias a su disciplina militar, movilidad de caballería y red postal (Yam), Gengis Kan y sus sucesores dominaron desde Corea hasta Europa oriental."
+                },
+                {
+                    q: "¿Qué acontecimiento de 1453 marca tradicionalmente para muchos historiadores el fin de la Edad Media?",
+                    options: ["La invención de la imprenta de tipos móviles", "La caída de Constantinopla ante los otomanos de Mehmed II", "La expulsión de los judíos de España", "La firma del Tratado de Tordesillas"],
+                    correct: 1,
+                    explanation: "El 29 de mayo de 1453, el sultán Mehmed II conquistó Constantinopla empleando artillería pesada, poniendo fin al Imperio Romano de Oriente."
+                },
+                {
+                    q: "¿Qué institución medieval creada en el siglo XIII tenía como objetivo perseguir la herejía, especialmente tras el auge del catarismo en el Languedoc?",
+                    options: ["La Inquisición Pontificia", "La Liga Hanseática", "El Tribunal de la Rota", "La Orden Teutónica"],
+                    correct: 0,
+                    explanation: "Instituida por el papa Gregorio IX hacia 1231, introdujo el procedimiento inquisitorial escrito en los tribunales eclesiásticos."
+                }
+            ],
+            moderna: [
+                {
+                    q: "¿Qué tratado de 1648 puso fin a la Guerra de los Treinta Años y consagró el principio moderno de soberanía estatal en Europa?",
+                    options: ["Paz de Utrecht", "Paz de Westfalia", "Paz de Cateau-Cambrésis", "Paz de Ryswick"],
+                    correct: 1,
+                    explanation: "Westfalia debilitó la autoridad universal del Emperador y del Papado, estableciendo el equilibrio de poder entre estados soberanos."
+                },
+                {
+                    q: "¿Qué monarca francés encarnó el absolutismo monárquico bajo la máxima 'El Estado soy yo' y centralizó la corte en Versalles?",
+                    options: ["Luis XIII", "Luis XIV", "Luis XV", "Francisco I"],
+                    correct: 1,
+                    explanation: "Durante sus 72 años de reinado, Luis XIV sometió a la alta nobleza, revocó el Edicto de Nantes y convirtió a Francia en la primera potencia continental."
+                },
+                {
+                    q: "¿Qué conflicto de 1701 a 1714 reconfiguró el mapa europeo tras morir sin descendencia Carlos II de España?",
+                    options: ["La Guerra de Sucesión Española", "La Guerra de los Siete Años", "La Guerra de Devolución", "La Guerra de la Liga de Augsburgo"],
+                    correct: 0,
+                    explanation: "Concluyó con los tratados de Utrecht y Rastatt: Felipe V conservó España y América, pero cedió los Países Bajos españoles, Italia, Gibraltar y Menorca."
+                },
+                {
+                    q: "¿Qué navegador portugués al servicio de la Corona española inició en 1519 la expedición que completaría la primera circunnavegación del globo?",
+                    options: ["Vasco da Gama", "Fernando de Magallanes", "Bartolomé Díaz", "Pedro Álvares Cabral"],
+                    correct: 1,
+                    explanation: "Tras morir Magallanes en Filipinas en 1521, Juan Sebastián Elcano asumió el mando de la nao Victoria y regresó a Sanlúcar de Barrameda en 1522."
+                },
+                {
+                    q: "¿Qué movimiento político-religioso inglés de 1688 derrocó al católico Jacobo II y consolidó la monarquía parlamentaria mediante la 'Bill of Rights'?",
+                    options: ["La Revolución Puritana", "La Revolución Gloriosa", "La Conspiración de la Pólvora", "La Restauración Estuardo"],
+                    correct: 1,
+                    explanation: "Guillermo de Orange y María II aceptaron la Declaración de Derechos de 1689, limitando el poder real frente al Parlamento."
+                },
+                {
+                    q: "¿Qué obra publicada por Nicolás Copérnico en 1543 cuestionó el modelo geocéntrico ptolemaico al situar el Sol en el centro del sistema?",
+                    options: ["Sidereus Nuncius", "De revolutionibus orbium coelestium", "Principia Mathematica", "Harmonices Mundi"],
+                    correct: 1,
+                    explanation: "La publicación de Copérnico dio inicio a la Revolución Científica, posteriormente desarrollada por Kepler, Galileo y Newton."
+                },
+                {
+                    q: "¿Qué enfrentamiento naval de 1571 frenó la expansión naval del Imperio Otomano en el Mediterráneo occidental?",
+                    options: ["Batalla de Preveza", "Batalla de Lepanto", "Sitio de Malta", "Batalla de Trafalgar"],
+                    correct: 1,
+                    explanation: "La Liga Santa (España, Venecia y el Papado), comandada por Juan de Austria, derrotó a la flota otomana en el golfo de Patras."
+                },
+                {
+                    q: "¿Qué tratado de 1494 repartió las tierras recién descubiertas fuera de Europa entre Castilla y Portugal mediante un meridiano al oeste de Cabo Verde?",
+                    options: ["Tratado de Alcáçovas", "Tratado de Tordesillas", "Tratado de Zaragoza", "Bulas Alejandrinas"],
+                    correct: 1,
+                    explanation: "Este acuerdo permitió posteriormente a Portugal reclamar legalmente la costa de Brasil tras la llegada de Cabral en 1500."
+                },
+                {
+                    q: "¿Qué filósofo ilustrado formuló la teoría de la separación de poderes (legislativo, ejecutivo y judicial) en 'El espíritu de las leyes' (1748)?",
+                    options: ["Voltaire", "Montesquieu", "Jean-Jacques Rousseau", "Denis Diderot"],
+                    correct: 1,
+                    explanation: "La obra de Montesquieu influyó directamente en los redactores de la Constitución estadounidense de 1787 y en el constitucionalismo liberal."
+                },
+                {
+                    q: "¿Qué emperador ruso modernizó y occidentalizó el país a comienzos del siglo XVIII y fundó San Petersburgo como 'ventana a Europa'?",
+                    options: ["Iván IV el Terrible", "Pedro I el Grande", "Alejandro I", "Nicolás I"],
+                    correct: 1,
+                    explanation: "Tras derrotar a Suecia en la Gran Guerra del Norte, Pedro el Grande proclamó el Imperio Ruso en 1721 y reformó el ejército y la administración."
+                },
+                {
+                    q: "¿Qué teólogo alemán clavó o difundió sus 95 tesis contra la venta de indulgencias en Wittenberg en 1517, desencadenando la Reforma Protestante?",
+                    options: ["Juan Calvino", "Martín Lutero", "Ulrico Zuinglio", "Erasmo de Róterdam"],
+                    correct: 1,
+                    explanation: "Lutero defendió la justificación solo por la fe y la libre interpretación de la Biblia, fracturando la unidad religiosa de la cristiandad occidental."
+                },
+                {
+                    q: "¿Qué conflicto global librado entre 1756 y 1763 enfrentó a Gran Bretaña y Prusia contra Francia, Austria y España en Europa, América e India?",
+                    options: ["La Guerra de los Siete Años", "La Guerra de Sucesión Austríaca", "La Guerra de Crimea", "La Guerra Franco-Prusiana"],
+                    correct: 0,
+                    explanation: "Considerada por Churchill como la 'primera guerra mundial', dejó a Gran Bretaña como potencia colonial hegemónica pero endeudada, precipitando la revolución en sus trece colonias."
+                }
+            ],
+            contemporanea: [
+                {
+                    q: "¿Qué congreso celebrado entre 1814 y 1815 redibujó el mapa europeo tras la caída de Napoleón bajo los principios de legitimidad y equilibrio?",
+                    options: ["Congreso de Berlín", "Congreso de Viena", "Conferencia de Potsdam", "Tratado de Versalles"],
+                    correct: 1,
+                    explanation: "Dirigido por el canciller austríaco Metternich, restauró las monarquías absolutas y contuvo a Francia mediante estados tapón."
+                },
+                {
+                    q: "¿Qué crisis de octubre de 1962 llevó a Estados Unidos y la Unión Soviética al borde de una guerra nuclear directa?",
+                    options: ["El bloqueo de Berlín", "La Crisis de los Misiles en Cuba", "La Guerra de Corea", "El incidente del Golfo de Tonkín"],
+                    correct: 1,
+                    explanation: "Tras trece días de máxima tensión entre John F. Kennedy y Nikita Jrushchov, la URSS retiró los misiles de Cuba a cambio del compromiso de no invadir la isla y retirar misiles de Turquía."
+                },
+                {
+                    q: "¿Qué conferencia internacional de 1884-1885 reguló la ocupación efectiva del continente africano por las potencias coloniales europeas?",
+                    options: ["Conferencia de Bandung", "Conferencia de Berlín", "Conferencia de Algeciras", "Tratado de Brest-Litovsk"],
+                    correct: 1,
+                    explanation: "Convocada por Otto von Bismarck, aceleró el 'reparto de África' ignorando las fronteras étnicas, lingüísticas y culturales preexistentes."
+                },
+                {
+                    q: "¿Qué tratado firmado en marzo de 1918 sacó a la Rusia bolchevique de la Primera Guerra Mundial a costa de enormes pérdidas territoriales?",
+                    options: ["Tratado de Trianón", "Tratado de Brest-Litovsk", "Tratado de Rapallo", "Tratado de Sèvres"],
+                    correct: 1,
+                    explanation: "El gobierno de Lenin cedió Ucrania, Polonia, Finlandia y los países bálticos a los Imperios Centrales para consolidar la Revolución de Octubre."
+                },
+                {
+                    q: "¿Qué proceso de modernización acelerada iniciado en Japón en 1868 puso fin al shogunato Tokugawa y transformó al país en una potencia industrial?",
+                    options: ["La Era Showa", "La Restauración Meiji", "La Rebelión de los Bóxers", "La Guerra Boshin"],
+                    correct: 1,
+                    explanation: "Bajo el emperador Mutsuhito, Japón abolió el feudalismo samurái y adoptó instituciones políticas, educativas y militares occidentales."
+                },
+                {
+                    q: "¿Qué acontecimiento económico desencadenado el 24 de octubre de 1929 en Nueva York provocó la Gran Depresión mundial de los años treinta?",
+                    options: ["El fin del patrón oro en Bretton Woods", "El Crac de la Bolsa de Wall Street (Jueves Negro)", "La crisis del petróleo de la OPEP", "La hiperinflación de Weimar"],
+                    correct: 1,
+                    explanation: "El colapso bursátil generó quiebras bancarias en cadena, desempleo masivo y el auge de regímenes autoritarios y proteccionistas."
+                },
+                {
+                    q: "¿Qué acuerdo monetario de 1944 estableció el Fondo Monetario Internacional, el Banco Mundial y vinculó el dólar estadounidense al oro?",
+                    options: ["Acuerdos de Bretton Woods", "Plan Marshall", "Tratado de Roma", "Acuerdos de Camp David"],
+                    correct: 0,
+                    explanation: "Bretton Woods diseñó la arquitectura financiera internacional de posguerra vigente hasta la suspensión de la convertibilidad del dólar en 1971."
+                },
+                {
+                    q: "¿Qué movimiento político-social sudafricano puso fin al régimen de segregación racial del Apartheid tras las elecciones multirraciales de 1994?",
+                    options: ["El Congreso Nacional Africano (ANC) liderado por Nelson Mandela", "El Frente Patriótico", "La Organización de la Unidad Africana", "El Movimiento Mau Mau"],
+                    correct: 0,
+                    explanation: "Tras 27 años de prisión, Nelson Mandela negoció con Frederik de Klerk la transición democrática y se convirtió en el primer presidente negro de Sudáfrica."
+                },
+                {
+                    q: "¿Qué operación militar alemana iniciada el 22 de junio de 1941 supuso la invasión de la Unión Soviética y abrió el mayor frente terrestre de la historia?",
+                    options: ["Operación León Marino", "Operación Barbarroja", "Operación Overlord", "Operación Ciudadela"],
+                    correct: 1,
+                    explanation: "Rompiendo el pacto Ribbentrop-Mólotov, Hitler lanzó más de tres millones de soldados contra la URSS, estancándose ante Moscú y Stalingrado."
+                },
+                {
+                    q: "¿Qué conferencia celebrada en Indonesia en 1955 reunió a 29 países asiáticos y africanos recién descolonizados, sentando las bases del Movimiento de Países No Alineados?",
+                    options: ["Conferencia de Bandung", "Conferencia de Yalta", "Conferencia de Ginebra", "Conferencia de Helsinki"],
+                    correct: 0,
+                    explanation: "Liderada por figuras como Sukarno, Nehru y Nasser, rechazó el neocolonialismo y la alineación automática con los bloques de la Guerra Fría."
+                },
+                {
+                    q: "¿Qué símbolo físico de la división de Europa durante la Guerra Fría fue derribado por la población el 9 de noviembre de 1989?",
+                    options: ["El Muro de Berlín", "El Checkpoint Charlie", "La Línea Maginot", "El Paralelo 38"],
+                    correct: 0,
+                    explanation: "La caída del Muro de Berlín precipitó la reunificación alemana en 1990 y la disolución de la Unión Soviética en diciembre de 1991."
+                },
+                {
+                    q: "¿Qué canal estratégico nacionalizado por el presidente egipcio Gamal Abdel Nasser en 1956 desencadenó una intervención militar de Reino Unido, Francia e Israel?",
+                    options: ["Canal de Panamá", "Canal de Suez", "Estrecho de Ormuz", "Canal de Kiel"],
+                    correct: 1,
+                    explanation: "La Crisis de Suez demostró el declive definitivo de Reino Unido y Francia como superpotencias coloniales frente a la presión diplomática de EE. UU. y la URSS."
+                }
+            ]
+        };
+
+        /**
+         * 4. ESTADO GLOBAL DE LA PARTIDA
+         */
+        const gameState = {
+            numPlayers: 2,
+            players: [],
+            currentPlayerIdx: 0,
+            phase: 'ROLL', // 'ROLL' | 'CHOOSE_DIR' | 'MOVING' | 'QUESTION' | 'GAMEOVER'
+            diceValue: 1,
+            cwTarget: null,
+            ccwTarget: null,
+            boardTiles: [], // 24 objetos { index, epoch, isCorner, xPct, yPct, svgX, svgY }
+            questionDecks: {
+                antigua: [],
+                media: [],
+                moderna: [],
+                contemporanea: []
+            },
+            currentQuestion: null,
+            currentTile: null
+        };
+
+        /**
+         * 5. INICIALIZACIÓN DE LA PANTALLA DE CONFIGURACIÓN
+         */
+        const setupScreen = document.getElementById('setupScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const playerCountSelector = document.getElementById('playerCountSelector');
+        const playerInputsContainer = document.getElementById('playerInputsContainer');
+        const setupAudioCheckbox = document.getElementById('setupAudioCheckbox');
+
+        function renderSetupInputs() {
+            playerInputsContainer.innerHTML = '';
+            for (let i = 0; i < gameState.numPlayers; i++) {
+                const preset = TOKEN_PRESETS[i];
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-3 bg-wood-950/85 border border-brass-700/40 rounded-xl p-3';
+                row.innerHTML = `
+                    <div class="w-10 h-10 rounded-full shrink-0 flex items-center justify-center shadow-md border-2 border-white/80" style="background-color: ${preset.color};">
+                        <span class="font-serif font-black text-white text-sm">J${i + 1}</span>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-[11px] uppercase tracking-wider text-stone-400 font-semibold mb-1">
+                            Jugador ${i + 1} • Ficha ${preset.gem}
+                        </label>
+                        <input 
+                            type="text" 
+                            id="playerNameInput_${i}" 
+                            maxlength="18"
+                            value="${preset.name}" 
+                            placeholder="Nombre del jugador ${i + 1}"
+                            class="w-full bg-wood-900 border border-brass-700/50 focus:border-brass-400 rounded-lg px-3 py-1.5 text-sm text-white outline-none transition"
+                        />
+                    </div>
+                `;
+                playerInputsContainer.appendChild(row);
+            }
+        }
+
+        // Eventos selector número jugadores
+        playerCountSelector.querySelectorAll('.count-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                gameState.numPlayers = parseInt(btn.dataset.count, 10);
+                playerCountSelector.querySelectorAll('.count-btn').forEach(b => {
+                    b.className = 'count-btn py-2.5 rounded-xl font-serif font-bold text-sm sm:text-base border transition cursor-pointer bg-wood-950/80 text-stone-300 border-brass-700/50 hover:border-brass-500';
+                });
+                btn.className = 'count-btn py-2.5 rounded-xl font-serif font-bold text-sm sm:text-base border transition cursor-pointer bg-brass-500 text-wood-950 border-brass-300 shadow-brass';
+                renderSetupInputs();
+            });
+        });
+
+        // Sincronizar audio checkbox con botón de cabecera
+        setupAudioCheckbox.addEventListener('change', (e) => {
+            soundFX.enabled = e.target.checked;
+            updateAudioIcons();
+        });
+
+        document.getElementById('btnAudioToggle').addEventListener('click', () => {
+            soundFX.enabled = !soundFX.enabled;
+            setupAudioCheckbox.checked = soundFX.enabled;
+            updateAudioIcons();
+            if (soundFX.enabled) soundFX.playStep();
+        });
+
+        function updateAudioIcons() {
+            document.getElementById('iconSoundOn').classList.toggle('hidden', !soundFX.enabled);
+            document.getElementById('iconSoundOff').classList.toggle('hidden', soundFX.enabled);
+        }
+
+        // Modales Reglamento
+        const rulesModal = document.getElementById('rulesModal');
+        document.getElementById('btnRulesOpen').addEventListener('click', () => rulesModal.classList.remove('hidden'));
+        document.getElementById('btnRulesClose').addEventListener('click', () => rulesModal.classList.add('hidden'));
+        document.getElementById('btnRulesOk').addEventListener('click', () => rulesModal.classList.add('hidden'));
+
+        // Botón Nueva Partida en cabecera
+        document.getElementById('btnNewSetup').addEventListener('click', () => {
+            gameScreen.classList.add('hidden');
+            document.getElementById('btnNewSetup').classList.add('hidden');
+            setupScreen.classList.remove('hidden');
+        });
+
+        document.getElementById('btnPlayAgain').addEventListener('click', () => {
+            document.getElementById('victoryModal').classList.add('hidden');
+            gameScreen.classList.add('hidden');
+            document.getElementById('btnNewSetup').classList.add('hidden');
+            setupScreen.classList.remove('hidden');
+        });
+
+        /**
+         * 6. CONSTRUCCIÓN DEL TABLERO CIRCULAR DE 24 CASILLAS
+         */
+        function buildCircularBoard() {
+            const tilesGroup = document.getElementById('boardTilesGroup');
+            tilesGroup.innerHTML = '';
+            gameState.boardTiles = [];
+
+            const totalTiles = 24;
+            const centerX = 300;
+            const centerY = 300;
+            const radius = 218; // Radio del anillo de casillas dentro del viewBox 600x600
+
+            // Secuencia equilibrada para las 20 casillas normales (excluyendo las esquinas 0, 6, 12, 18)
+            // Cada segmento de 5 casillas entre esquinas intercala las 4 épocas
+            const segmentPatterns = [
+                ['media', 'moderna', 'contemporanea', 'antigua', 'media'],          // Tramo 1..5
+                ['moderna', 'contemporanea', 'antigua', 'media', 'moderna'],        // Tramo 7..11
+                ['contemporanea', 'antigua', 'media', 'moderna', 'contemporanea'],  // Tramo 13..17
+                ['antigua', 'media', 'moderna', 'contemporanea', 'antigua']         // Tramo 19..23
+            ];
+
+            for (let i = 0; i < totalTiles; i++) {
+                // Ángulo en radianes: índice 0 en Norte (-90 grados = -PI/2)
+                const angleRad = ((i / totalTiles) * 2 * Math.PI) - (Math.PI / 2);
+                const svgX = centerX + radius * Math.cos(angleRad);
+                const svgY = centerY + radius * Math.sin(angleRad);
+
+                // Porcentajes para posicionar las fichas HTML encima del SVG
+                const xPct = (svgX / 600) * 100;
+                const yPct = (svgY / 600) * 100;
+
+                let isCorner = false;
+                let epochKey = 'antigua';
+
+                if (i === 0) { isCorner = true; epochKey = 'antigua'; }
+                else if (i === 6) { isCorner = true; epochKey = 'media'; }
+                else if (i === 12) { isCorner = true; epochKey = 'moderna'; }
+                else if (i === 18) { isCorner = true; epochKey = 'contemporanea'; }
+                else {
+                    const quadrant = Math.floor(i / 6);
+                    const offsetInQuadrant = (i % 6) - 1;
+                    epochKey = segmentPatterns[quadrant][offsetInQuadrant];
+                }
+
+                const epochObj = EPOCHS[epochKey];
+                const tileData = {
+                    index: i,
+                    epoch: epochKey,
+                    isCorner,
+                    svgX,
+                    svgY,
+                    xPct,
+                    yPct
+                };
+                gameState.boardTiles.push(tileData);
+
+                // Crear grupo SVG de la casilla
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('id', `svgTile_${i}`);
+                g.setAttribute('transform', `translate(${svgX}, ${svgY})`);
+                g.style.transformOrigin = `${svgX}px ${svgY}px`;
+
+                const tileRadius = isCorner ? 27 : 20;
+
+                // Círculo exterior dorado en esquinas de Quesito
+                if (isCorner) {
+                    const outerHalo = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    outerHalo.setAttribute('r', tileRadius + 5);
+                    outerHalo.setAttribute('fill', 'none');
+                    outerHalo.setAttribute('stroke', '#f3d999');
+                    outerHalo.setAttribute('stroke-width', '2');
+                    outerHalo.setAttribute('stroke-dasharray', '3 2');
+                    g.appendChild(outerHalo);
+                }
+
+                // Cuerpo de la casilla
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('r', tileRadius);
+                circle.setAttribute('fill', epochObj.color);
+                circle.setAttribute('stroke', isCorner ? '#f3d999' : '#1b120d');
+                circle.setAttribute('stroke-width', isCorner ? '3.5' : '2.2');
+                circle.setAttribute('filter', 'url(#tileShadow)');
+                g.appendChild(circle);
+
+                // Icono interior (Corona / Quesito en esquinas, punto o inicial en normales)
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('dominant-baseline', 'central');
+                label.setAttribute('fill', '#ffffff');
+                label.setAttribute('font-size', isCorner ? '16' : '11');
+                label.setAttribute('font-weight', 'bold');
+                label.textContent = isCorner ? '♛' : epochObj.shortName[0];
+                g.appendChild(label);
+
+                // Evento clic en casilla (activo cuando es una de las 2 casillas destino)
+                g.addEventListener('click', () => handleTileClick(i));
+
+                tilesGroup.appendChild(g);
+            }
+        }
+
+        /**
+         * 7. BARAJADO DE MAZOS DE PREGUNTAS (SIN REPETICIONES HASTA AGOTAR)
+         */
+        function shuffleArray(arr) {
+            const copy = [...arr];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+
+        function initQuestionDecks() {
+            EPOCH_KEYS.forEach(key => {
+                gameState.questionDecks[key] = shuffleArray(QUESTIONS_DB[key]);
+            });
+            updateDeckCounter();
+        }
+
+        function drawQuestionForEpoch(epochKey) {
+            if (gameState.questionDecks[epochKey].length === 0) {
+                // Si se agota el mazo de una época, se vuelve a barajar automáticamente
+                gameState.questionDecks[epochKey] = shuffleArray(QUESTIONS_DB[epochKey]);
+                addLog(`🔄 Se ha rebarajado el mazo de ${EPOCHS[epochKey].name}.`);
+            }
+            const question = gameState.questionDecks[epochKey].pop();
+            updateDeckCounter();
+            return question;
+        }
+
+        function updateDeckCounter() {
+            const remaining = EPOCH_KEYS.reduce((acc, k) => acc + gameState.questionDecks[k].length, 0);
+            document.getElementById('deckCounterBadge').textContent = `${remaining} Cartas`;
+        }
+
+        /**
+         * 8. INICIO DE PARTIDA Y RENDERIZADO DE MARCADORES / FICHAS
+         */
+        document.getElementById('btnStartGame').addEventListener('click', startNewGame);
+
+        function startNewGame() {
+            soundFX.init();
+            soundFX.playCorrect();
+
+            gameState.players = [];
+            for (let i = 0; i < gameState.numPlayers; i++) {
+                const inputEl = document.getElementById(`playerNameInput_${i}`);
+                const rawName = inputEl ? inputEl.value.trim() : '';
+                const preset = TOKEN_PRESETS[i];
+
+                // Cada jugador empieza en una de las 4 esquinas cardinales para distribuir la salida
+                const startPos = (i * 6) % 24;
+
+                gameState.players.push({
+                    id: i,
+                    name: rawName || preset.name,
+                    gem: preset.gem,
+                    color: preset.color,
+                    ring: preset.ring,
+                    position: startPos,
+                    wedges: {
+                        antigua: false,
+                        media: false,
+                        moderna: false,
+                        contemporanea: false
+                    },
+                    correctCount: 0,
+                    totalAnswered: 0
+                });
+            }
+
+            gameState.currentPlayerIdx = 0;
+            gameState.phase = 'ROLL';
+            gameState.cwTarget = null;
+            gameState.ccwTarget = null;
+
+            buildCircularBoard();
+            initQuestionDecks();
+
+            setupScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            document.getElementById('btnNewSetup').classList.remove('hidden');
+
+            document.getElementById('gameLogList').innerHTML = '';
+            addLog(`🎲 Comienza la partida con ${gameState.players.length} historiadores.`);
+
+            renderScoreboard();
+            renderTokens();
+            updateTurnUI();
+        }
+
+        function renderScoreboard() {
+            const container = document.getElementById('scoreboardList');
+            container.innerHTML = '';
+
+            gameState.players.forEach((player, idx) => {
+                const isActive = idx === gameState.currentPlayerIdx;
+                const wedgeCount = Object.values(player.wedges).filter(Boolean).length;
+
+                const card = document.createElement('div');
+                card.className = `rounded-xl p-3 border transition-all ${
+                    isActive 
+                    ? 'bg-wood-800/95 border-brass-400 shadow-brass scale-[1.01]' 
+                    : 'bg-wood-950/75 border-brass-700/30 opacity-85'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-4 h-4 rounded-full shrink-0 border border-white/80 shadow" style="background-color: ${player.color};"></span>
+                            <span class="font-serif font-bold text-sm text-white truncate">${escapeHtml(player.name)}</span>
+                        </div>
+                        <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-wood-950 text-brass-300 border border-brass-700/40 shrink-0">
+                            ${wedgeCount}/4 ♛
+                        </span>
+                    </div>
+
+                    <!-- Dial Visual de los 4 Quesitos -->
+                    <div class="grid grid-cols-4 gap-1.5">
+                        ${EPOCH_KEYS.map(key => {
+                            const earned = player.wedges[key];
+                            const ep = EPOCHS[key];
+                            return `
+                                <div title="${ep.name}: ${earned ? 'Conseguido' : 'Pendiente'}" 
+                                     class="h-6 rounded-md flex items-center justify-center text-[10px] font-bold border transition-all ${
+                                        earned 
+                                        ? 'text-white border-brass-300 shadow-sm' 
+                                        : 'bg-wood-950/90 text-stone-600 border-stone-800'
+                                     }"
+                                     style="${earned ? `background-color: ${ep.color};` : ''}">
+                                    ${earned ? '♛' : ep.shortName.slice(0, 3).toUpperCase()}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderTokens() {
+            const layer = document.getElementById('tokensLayer');
+            layer.innerHTML = '';
+
+            // Agrupar jugadores que coincidan en la misma casilla para desplazarlos levemente y que todos se vean
+            const occupancy = {};
+            gameState.players.forEach(p => {
+                if (!occupancy[p.position]) occupancy[p.position] = [];
+                occupancy[p.position].push(p.id);
+            });
+
+            gameState.players.forEach((player, idx) => {
+                const tile = gameState.boardTiles[player.position];
+                const sameTileList = occupancy[player.position];
+                const slot = sameTileList.indexOf(player.id);
+
+                // Pequeño offset si hay varias fichas en la misma casilla
+                const offsets = [
+                    { dx: 0, dy: 0 },
+                    { dx: -1.4, dy: -1.4 },
+                    { dx: 1.4, dy: -1.4 },
+                    { dx: 0, dy: 1.5 }
+                ];
+                const off = sameTileList.length > 1 ? offsets[slot % offsets.length] : { dx: 0, dy: 0 };
+
+                const isActive = idx === gameState.currentPlayerIdx;
+                const token = document.createElement('div');
+                token.id = `playerToken_${player.id}`;
+                token.className = `player-token absolute -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center font-serif font-black text-white text-[11px] sm:text-xs shadow-lg border-2 ${
+                    isActive ? 'w-7 h-7 sm:w-8 sm:h-8 z-30 ring-4 ring-brass-300/80' : 'w-6 h-6 sm:w-7 sm:h-7 z-20 opacity-95'
+                }`;
+                token.style.backgroundColor = player.color;
+                token.style.borderColor = '#ffffff';
+                token.style.left = `${tile.xPct + off.dx}%`;
+                token.style.top = `${tile.yPct + off.dy}%`;
+                token.textContent = `J${player.id + 1}`;
+
+                layer.appendChild(token);
+            });
+        }
+
+        function updateTurnUI() {
+            const activePlayer = gameState.players[gameState.currentPlayerIdx];
+            const dot = document.getElementById('activePlayerDot');
+            const text = document.getElementById('turnInstructionText');
+            const badge = document.getElementById('turnPhaseBadge');
+            const btnRoll = document.getElementById('btnRollDice');
+            const dirPrompt = document.getElementById('directionPrompt');
+            const quickDirs = document.getElementById('directionQuickButtons');
+
+            dot.style.backgroundColor = activePlayer.color;
+
+            if (gameState.phase === 'ROLL') {
+                text.textContent = `Turno de ${activePlayer.name}: Lanza el dado`;
+                badge.textContent = 'Tirada';
+                btnRoll.classList.remove('hidden');
+                btnRoll.disabled = false;
+                dirPrompt.classList.add('hidden');
+                quickDirs.classList.add('hidden');
+            } else if (gameState.phase === 'CHOOSE_DIR') {
+                text.textContent = `${activePlayer.name} sacó un ${gameState.diceValue}: Elige dirección`;
+                badge.textContent = 'Dirección';
+                btnRoll.classList.add('hidden');
+                dirPrompt.classList.remove('hidden');
+                document.getElementById('diceValueLabel').textContent = gameState.diceValue;
+                quickDirs.classList.remove('hidden');
+            } else if (gameState.phase === 'MOVING') {
+                text.textContent = `Avanzando ficha de ${activePlayer.name}...`;
+                badge.textContent = 'Movimiento';
+                btnRoll.classList.add('hidden');
+                dirPrompt.classList.add('hidden');
+                quickDirs.classList.add('hidden');
+            } else if (gameState.phase === 'QUESTION') {
+                text.textContent = `Pregunta histórica para ${activePlayer.name}`;
+                badge.textContent = 'Desafío';
+                btnRoll.classList.add('hidden');
+                dirPrompt.classList.add('hidden');
+                quickDirs.classList.add('hidden');
+            }
+        }
+
+        /**
+         * 9. TIRADA DE DADO 3D Y ELECCIÓN DE DIRECCIÓN (HORARIO / ANTIHORARIO)
+         */
+        const diceCube = document.getElementById('diceCube');
+        const btnRollDice = document.getElementById('btnRollDice');
+        const diceClickArea = document.getElementById('diceClickArea');
+
+        // Rotaciones exactas para mostrar cada cara del cubo 3D
+        const DICE_ROTATIONS = {
+            1: { x: 0, y: 0 },
+            2: { x: 0, y: -90 },
+            3: { x: 0, y: 180 },
+            4: { x: 0, y: 90 },
+            5: { x: -90, y: 0 },
+            6: { x: 90, y: 0 }
+        };
+
+        let spinMultiplier = 0;
+
+        function triggerDiceRoll() {
+            if (gameState.phase !== 'ROLL') return;
+
+            btnRollDice.disabled = true;
+            soundFX.playDiceRoll();
+
+            const result = Math.floor(Math.random() * 6) + 1;
+            gameState.diceValue = result;
+
+            // Añadir vueltas extra en X e Y para efecto físico realista
+            spinMultiplier += 2;
+            const rot = DICE_ROTATIONS[result];
+            const finalX = rot.x + (360 * spinMultiplier);
+            const finalY = rot.y + (360 * spinMultiplier);
+
+            diceCube.style.transform = `rotateX(${finalX}deg) rotateY(${finalY}deg)`;
+
+            setTimeout(() => {
+                const activePlayer = gameState.players[gameState.currentPlayerIdx];
+                const currentPos = activePlayer.position;
+
+                // Calcular casilla destino en sentido horario (+diceValue) y antihorario (-diceValue)
+                gameState.cwTarget = (currentPos + result) % 24;
+                gameState.ccwTarget = (currentPos - result + 24) % 24;
+
+                gameState.phase = 'CHOOSE_DIR';
+                highlightDestinationTiles(true);
+                updateTurnUI();
+                addLog(`🎲 ${activePlayer.name} ha sacado un ${result}.`);
+            }, 880);
+        }
+
+        btnRollDice.addEventListener('click', triggerDiceRoll);
+        diceClickArea.addEventListener('click', () => {
+            if (gameState.phase === 'ROLL') triggerDiceRoll();
+        });
+
+        function highlightDestinationTiles(enable) {
+            for (let i = 0; i < 24; i++) {
+                const el = document.getElementById(`svgTile_${i}`);
+                if (el) el.classList.remove('svg-tile-target');
+            }
+            if (enable) {
+                const cwEl = document.getElementById(`svgTile_${gameState.cwTarget}`);
+                const ccwEl = document.getElementById(`svgTile_${gameState.ccwTarget}`);
+                if (cwEl) cwEl.classList.add('svg-tile-target');
+                if (ccwEl) ccwEl.classList.add('svg-tile-target');
+            }
+        }
+
+        function handleTileClick(tileIndex) {
+            if (gameState.phase !== 'CHOOSE_DIR') return;
+
+            if (tileIndex === gameState.cwTarget) {
+                animateTokenMovement(1); // Sentido horario
+            } else if (tileIndex === gameState.ccwTarget) {
+                animateTokenMovement(-1); // Sentido antihorario
+            }
+        }
+
+        document.getElementById('btnMoveCW').addEventListener('click', () => {
+            if (gameState.phase === 'CHOOSE_DIR') animateTokenMovement(1);
+        });
+
+        document.getElementById('btnMoveCCW').addEventListener('click', () => {
+            if (gameState.phase === 'CHOOSE_DIR') animateTokenMovement(-1);
+        });
+
+        /**
+         * 10. ANIMACIÓN PASO A PASO DE LA FICHA HASTA LA CASILLA DESTINO
+         */
+        function animateTokenMovement(direction) {
+            highlightDestinationTiles(false);
+            gameState.phase = 'MOVING';
+            updateTurnUI();
+
+            const activePlayer = gameState.players[gameState.currentPlayerIdx];
+            let stepsRemaining = gameState.diceValue;
+
+            const stepInterval = setInterval(() => {
+                activePlayer.position = (activePlayer.position + direction + 24) % 24;
+                soundFX.playStep();
+                renderTokens();
+                stepsRemaining--;
+
+                if (stepsRemaining <= 0) {
+                    clearInterval(stepInterval);
+                    setTimeout(() => {
+                        openQuestionForCurrentTile();
+                    }, 260);
+                }
+            }, 250);
+        }
+
+        /**
+         * 11. SISTEMA DE PREGUNTAS, VALIDACIÓN, QUESITOS Y CONTINUIDAD DE TURNO
+         */
+        function openQuestionForCurrentTile() {
+            gameState.phase = 'QUESTION';
+            updateTurnUI();
+
+            const activePlayer = gameState.players[gameState.currentPlayerIdx];
+            const tile = gameState.boardTiles[activePlayer.position];
+            const epochObj = EPOCHS[tile.epoch];
+            const questionObj = drawQuestionForEpoch(tile.epoch);
+
+            gameState.currentTile = tile;
+            gameState.currentQuestion = questionObj;
+
+            // Configurar cabecera del modal según la época
+            const header = document.getElementById('qModalHeader');
+            header.className = `px-5 py-3.5 flex items-center justify-between border-b border-white/15 ${epochObj.bgClass}`;
+            document.getElementById('qEpochIcon').textContent = epochObj.icon;
+            document.getElementById('qEpochTitle').textContent = epochObj.name;
+            document.getElementById('qPlayerTurnLabel').textContent = `Responde: ${activePlayer.name}`;
+
+            const wedgeBadge = document.getElementById('qWedgeBadge');
+            if (tile.isCorner) {
+                wedgeBadge.classList.remove('hidden');
+            } else {
+                wedgeBadge.classList.add('hidden');
+            }
+
+            document.getElementById('qText').textContent = questionObj.q;
+
+            // Barajar visualmente el orden de las 4 opciones manteniendo el seguimiento de la correcta
+            const indexedOptions = questionObj.options.map((text, idx) => ({
+                text,
+                isCorrect: idx === questionObj.correct
+            }));
+            const shuffledOptions = shuffleArray(indexedOptions);
+
+            const optionsContainer = document.getElementById('qOptionsContainer');
+            optionsContainer.innerHTML = '';
+
+            const letters = ['A', 'B', 'C', 'D'];
+            shuffledOptions.forEach((opt, i) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.dataset.correct = opt.isCorrect ? '1' : '0';
+                btn.className = 'q-option-btn w-full text-left p-3.5 rounded-xl bg-wood-950/90 hover:bg-wood-800 border border-brass-700/50 hover:border-brass-400 text-stone-200 text-sm sm:text-base transition flex items-start gap-3 cursor-pointer';
+                btn.innerHTML = `
+                    <span class="w-6 h-6 rounded-md bg-wood-800 border border-brass-600/50 text-brass-300 font-serif font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        ${letters[i]}
+                    </span>
+                    <span class="flex-1 leading-snug">${escapeHtml(opt.text)}</span>
+                `;
+                btn.addEventListener('click', () => handleAnswerSelection(btn, opt.isCorrect));
+                optionsContainer.appendChild(btn);
+            });
+
+            document.getElementById('qFeedbackBox').classList.add('hidden');
+            document.getElementById('questionModal').classList.remove('hidden');
+        }
+
+        function handleAnswerSelection(selectedBtn, isCorrect) {
+            const allButtons = document.querySelectorAll('.q-option-btn');
+            allButtons.forEach(b => {
+                b.disabled = true;
+                b.classList.remove('hover:bg-wood-800', 'hover:border-brass-400', 'cursor-pointer');
+                if (b.dataset.correct === '1') {
+                    b.className = 'q-option-btn w-full text-left p-3.5 rounded-xl bg-emerald-950/90 border-2 border-emerald-400 text-emerald-100 text-sm sm:text-base flex items-start gap-3 shadow-md';
+                } else if (b === selectedBtn && !isCorrect) {
+                    b.className = 'q-option-btn w-full text-left p-3.5 rounded-xl bg-rose-950/90 border-2 border-rose-500 text-rose-100 text-sm sm:text-base flex items-start gap-3';
+                } else {
+                    b.classList.add('opacity-50');
+                }
+            });
+
+            const activePlayer = gameState.players[gameState.currentPlayerIdx];
+            const tile = gameState.currentTile;
+            const epochObj = EPOCHS[tile.epoch];
+
+            activePlayer.totalAnswered++;
+
+            const feedbackBox = document.getElementById('qFeedbackBox');
+            const resIcon = document.getElementById('qResultIcon');
+            const resTitle = document.getElementById('qResultTitle');
+            const expText = document.getElementById('qExplanationText');
+            const btnContinue = document.getElementById('btnContinueTurn');
+
+            let earnedNewWedge = false;
+
+            if (isCorrect) {
+                activePlayer.correctCount++;
+
+                // Comprobar si estaba en una esquina de Quesito y aún no lo tenía
+                if (tile.isCorner && !activePlayer.wedges[tile.epoch]) {
+                    activePlayer.wedges[tile.epoch] = true;
+                    earnedNewWedge = true;
+                    soundFX.playWedgeEarned();
+                } else {
+                    soundFX.playCorrect();
+                }
+
+                feedbackBox.className = 'mt-5 p-4 rounded-xl border border-emerald-500/60 bg-emerald-950/40';
+                resIcon.textContent = earnedNewWedge ? '👑' : '✅';
+                resTitle.className = 'font-serif font-bold text-sm sm:text-base text-emerald-300';
+                resTitle.textContent = earnedNewWedge
+                    ? `¡QUESITO DE ${epochObj.name.toUpperCase()} CONQUISTADO!`
+                    : '¡Respuesta Correcta! Conservas el turno.';
+
+                btnContinue.textContent = 'Volver a Tirar el Dado';
+                addLog(
+                    earnedNewWedge
+                    ? `👑 ¡${activePlayer.name} gana el quesito de ${epochObj.name} y sigue tirando!`
+                    : `✅ ${activePlayer.name} acierta (${epochObj.shortName}) y repite turno.`
+                );
+            } else {
+                soundFX.playWrong();
+                feedbackBox.className = 'mt-5 p-4 rounded-xl border border-rose-500/60 bg-rose-950/40';
+                resIcon.textContent = '❌';
+                resTitle.className = 'font-serif font-bold text-sm sm:text-base text-rose-300';
+                resTitle.textContent = 'Respuesta Incorrecta. Pasa el turno.';
+                btnContinue.textContent = 'Pasar Turno al Siguiente Jugador';
+                addLog(`❌ ${activePlayer.name} falla en ${epochObj.shortName}. Pasa el turno.`);
+            }
+
+            expText.textContent = gameState.currentQuestion.explanation;
+            feedbackBox.classList.remove('hidden');
+            renderScoreboard();
+
+            // Configurar botón de continuación
+            btnContinue.onclick = () => {
+                document.getElementById('questionModal').classList.add('hidden');
+
+                // Comprobar condición de victoria (4 quesitos conseguidos)
+                const totalWedges = Object.values(activePlayer.wedges).filter(Boolean).length;
+                if (totalWedges === 4) {
+                    triggerVictory(activePlayer);
+                    return;
+                }
+
+                if (isCorrect) {
+                    // Regla: Si acierta, le sigue tocando
+                    gameState.phase = 'ROLL';
+                } else {
+                    // Regla: Si falla, pasa al siguiente jugador
+                    gameState.currentPlayerIdx = (gameState.currentPlayerIdx + 1) % gameState.players.length;
+                    gameState.phase = 'ROLL';
+                }
+
+                renderScoreboard();
+                renderTokens();
+                updateTurnUI();
+            };
+        }
+
+        /**
+         * 12. PANTALLA DE VICTORIA Y ESTADÍSTICAS FINALES
+         */
+        function triggerVictory(winner) {
+            gameState.phase = 'GAMEOVER';
+            soundFX.playVictory();
+            addLog(`🏆 ¡${winner.name} ha ganado la partida con los 4 quesitos!`);
+
+            document.getElementById('winnerNameTitle').textContent = `¡${winner.name}!`;
+
+            const statsContainer = document.getElementById('victoryStatsList');
+            statsContainer.innerHTML = '';
+
+            // Ordenar jugadores por número de quesitos y aciertos
+            const sortedPlayers = [...gameState.players].sort((a, b) => {
+                const wA = Object.values(a.wedges).filter(Boolean).length;
+                const wB = Object.values(b.wedges).filter(Boolean).length;
+                if (wB !== wA) return wB - wA;
+                return b.correctCount - a.correctCount;
+            });
+
+            sortedPlayers.forEach((p, rank) => {
+                const wCount = Object.values(p.wedges).filter(Boolean).length;
+                const accuracy = p.totalAnswered > 0 ? Math.round((p.correctCount / p.totalAnswered) * 100) : 0;
+
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between text-xs sm:text-sm border-b border-brass-700/30 last:border-0 pb-2 last:pb-0';
+                row.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="font-serif font-bold text-brass-400">#${rank + 1}</span>
+                        <span class="w-3 h-3 rounded-full" style="background-color: ${p.color};"></span>
+                        <span class="font-semibold text-white">${escapeHtml(p.name)}</span>
+                    </div>
+                    <div class="text-right text-stone-300">
+                        <span class="font-bold text-brass-300">${wCount}/4 quesitos</span>
+                        <span class="text-stone-500 mx-1">•</span>
+                        <span>${p.correctCount}/${p.totalAnswered} aciertos (${accuracy}%)</span>
+                    </div>
+                `;
+                statsContainer.appendChild(row);
+            });
+
+            document.getElementById('victoryModal').classList.remove('hidden');
+        }
+
+        /**
+         * 13. UTILIDADES AUXILIARES
+         */
+        function addLog(message) {
+            const list = document.getElementById('gameLogList');
+            if (!list) return;
+            const item = document.createElement('div');
+            item.className = 'border-l-2 border-brass-500/60 pl-2 py-0.5 leading-snug';
+            item.textContent = message;
+            list.prepend(item);
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Inicializar formulario de 2 jugadores al cargar la página
+        renderSetupInputs();
+    </script>
+</body>
+</html>
