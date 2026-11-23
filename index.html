@@ -1,0 +1,247 @@
+let gameOver = false;
+
+const categoryNames = {
+    antigua: 'Edad Antigua',
+    media: 'Edad Media',
+    moderna: 'Edad Moderna',
+    contemporanea: 'Edad Contemporánea'
+};
+
+function renderNameInputs() {
+    const count = Number(document.getElementById('num-players').value);
+    const container = document.getElementById('name-inputs-container');
+    container.replaceChildren();
+
+    for (let i = 0; i < count; i++) {
+        const group = document.createElement('div');
+        group.className = 'setup-input-group';
+        group.style.marginTop = '10px';
+
+        const label = document.createElement('label');
+        label.htmlFor = `p${i}-name`;
+        label.textContent = `Jugador ${i + 1}:`;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = `p${i}-name`;
+        input.maxLength = 24;
+        input.value = `Historiador ${i + 1}`;
+
+        group.append(label, input);
+        container.appendChild(group);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', renderNameInputs);
+
+function startGame() {
+    const count = Number(document.getElementById('num-players').value);
+
+    players = Array.from({ length: count }, (_, i) => ({
+        id: i,
+        name: document.getElementById(`p${i}-name`).value.trim() || `Historiador ${i + 1}`,
+        color: colors[i],
+        pos: 0,
+        badges: {
+            antigua: false,
+            media: false,
+            moderna: false,
+            contemporanea: false
+        }
+    }));
+
+    currentPlayerIndex = 0;
+    gameOver = false;
+    waitingQuestionResolution = false;
+
+    document.getElementById('setup-screen').style.display = 'none';
+    document.getElementById('game-container').style.display = 'flex';
+    document.getElementById('dice-text').textContent = 'Dado: —';
+    document.getElementById('roll-btn').disabled = false;
+
+    createBoard();
+}
+
+function createBoard() {
+    const board = document.getElementById('board');
+    board.replaceChildren();
+
+    const centerInfo = document.createElement('div');
+    centerInfo.className = 'center-info';
+    centerInfo.innerHTML = 'META<br>CENTRO';
+    board.appendChild(centerInfo);
+
+    const center = board.clientWidth / 2;
+    const radius = center * 0.77;
+
+    boardLayout.forEach((cellData, index) => {
+        const angle = (index / TOTAL_CELLS) * 2 * Math.PI - Math.PI / 2;
+        const cell = document.createElement('div');
+
+        cell.className = `cell ${cellData.category}${cellData.isQuesito ? ' quesito' : ''}`;
+        cell.style.left = `${center + radius * Math.cos(angle)}px`;
+        cell.style.top = `${center + radius * Math.sin(angle)}px`;
+        cell.style.transform = 'translate(-50%, -50%)';
+        cell.textContent = `${cellData.isQuesito ? '★ ' : ''}#${index}`;
+
+        board.appendChild(cell);
+    });
+
+    players.forEach((player, index) => {
+        const token = document.createElement('div');
+        token.className = 'player-token';
+        token.id = `token-${index}`;
+        token.style.backgroundColor = player.color;
+        token.style.boxShadow = `0 0 6px ${player.color}`;
+        board.appendChild(token);
+    });
+
+    updatePlayersUI();
+    updateTokensPosition();
+}
+
+function updateTokensPosition() {
+    const board = document.getElementById('board');
+    const center = board.clientWidth / 2;
+    const radius = center * 0.77;
+
+    players.forEach((player, index) => {
+        const token = document.getElementById(`token-${index}`);
+        if (!token) return;
+
+        const angle = (player.pos / TOTAL_CELLS) * 2 * Math.PI - Math.PI / 2;
+        const offsetRadius = radius + (index * 5) - 7;
+
+        token.style.left = `${center + offsetRadius * Math.cos(angle)}px`;
+        token.style.top = `${center + offsetRadius * Math.sin(angle)}px`;
+    });
+}
+
+function updatePlayersUI() {
+    const list = document.getElementById('players-list');
+    list.replaceChildren();
+
+    players.forEach((player, index) => {
+        const card = document.createElement('div');
+        card.className = `player-card${index === currentPlayerIndex && !gameOver ? ' active' : ''}`;
+
+        const info = document.createElement('div');
+        const name = document.createElement('strong');
+        name.textContent = player.name;
+        name.style.color = player.color;
+
+        const position = document.createElement('small');
+        position.textContent = `Casilla: ${player.pos}`;
+
+        info.append(name, document.createElement('br'), position);
+
+        const badges = document.createElement('div');
+        badges.className = 'badges';
+
+        categories.forEach(category => {
+            const badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.title = categoryNames[category];
+            badge.style.backgroundColor = `var(--color-${category})`;
+            badge.style.opacity = player.badges[category] ? '1' : '0.2';
+            badges.appendChild(badge);
+        });
+
+        card.append(info, badges);
+        list.appendChild(card);
+    });
+
+    const status = document.getElementById('game-status');
+    status.textContent = gameOver
+        ? 'Partida terminada. Recarga la página para jugar otra vez.'
+        : `Turno de: ${players[currentPlayerIndex].name}`;
+}
+
+function rollDice() {
+    if (waitingQuestionResolution || gameOver || players.length === 0) return;
+
+    diceValue = Math.floor(Math.random() * 6) + 1;
+    document.getElementById('dice-text').textContent = `Dado: ${diceValue}`;
+    movePlayer(diceValue);
+}
+
+function movePlayer(steps) {
+    const player = players[currentPlayerIndex];
+    player.pos = (player.pos + steps) % TOTAL_CELLS;
+
+    updateTokensPosition();
+    updatePlayersUI();
+    triggerCellAction(player);
+}
+
+function triggerCellAction(player) {
+    const cell = boardLayout[player.pos];
+    const questions = questionsBank[cell.category];
+    const question = questions[Math.floor(Math.random() * questions.length)];
+
+    openQuestionModal(cell, question);
+}
+
+function openQuestionModal(cell, question) {
+    waitingQuestionResolution = true;
+    document.getElementById('roll-btn').disabled = true;
+    document.getElementById('question-modal').style.display = 'flex';
+
+    const categoryText = categoryNames[cell.category] || cell.category;
+    document.getElementById('q-category').textContent =
+        `${categoryText}${cell.isQuesito ? ' — ¡Casilla quesito!' : ''}`;
+    document.getElementById('q-text').textContent = question.q;
+
+    const options = document.getElementById('q-options');
+    options.replaceChildren();
+
+    question.options.forEach((option, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'option-btn';
+        button.textContent = option;
+        button.addEventListener('click', () => {
+            resolveAnswer(index === question.correct, cell);
+        });
+        options.appendChild(button);
+    });
+}
+
+function resolveAnswer(isCorrect, cell) {
+    if (!waitingQuestionResolution || gameOver) return;
+
+    const player = players[currentPlayerIndex];
+    document.getElementById('question-modal').style.display = 'none';
+    waitingQuestionResolution = false;
+
+    if (isCorrect) {
+        if (cell.isQuesito) {
+            player.badges[cell.category] = true;
+        }
+
+        if (checkWinCondition(player)) return;
+
+        document.getElementById('game-status').textContent = cell.isQuesito
+            ? `¡Correcto, ${player.name}! Has conseguido el quesito de ${categoryNames[cell.category]}.`
+            : `¡Correcto, ${player.name}!`;
+    } else {
+        document.getElementById('game-status').textContent =
+            `Respuesta incorrecta. Turno de ${players[(currentPlayerIndex + 1) % players.length].name}.`;
+    }
+
+    currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+    document.getElementById('roll-btn').disabled = false;
+    updatePlayersUI();
+}
+
+function checkWinCondition(player) {
+    const hasAllBadges = Object.values(player.badges).every(Boolean);
+    if (!hasAllBadges) return false;
+
+    gameOver = true;
+    document.getElementById('roll-btn').disabled = true;
+    document.getElementById('game-status').textContent =
+        `¡${player.name} ha ganado! Ha conseguido los cuatro quesitos.`;
+    updatePlayersUI();
+    return true;
+}
